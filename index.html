@@ -53,13 +53,16 @@
       border-radius: 10px;
       padding: 1em;
       flex: 1 0 320px;
-      max-width: 360px;
+      max-width: 400px;
     }
-    /* Force single column earlier (tablet portrait) */
-      @media (max-width: 900px) {
+    @media (max-width: 1024px) {
       .child-card {
-      flex: 1 0 100%;
-      max-width: 100%;
+        flex: 1 0 100%;
+        max-width: 420px; 
+      }
+    
+      #children-container {
+        justify-content: center;
       }
     }
     .child-header {
