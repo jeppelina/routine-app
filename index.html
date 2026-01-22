@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Otis, Louis & Teddys Att Göra!</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 0;
+      padding: 0;
+      background-color: #fafafa;
+    }
+    header {
+      background-color: #4a90e2;
+      color: white;
+      padding: 1em;
+      text-align: center;
+    }
+    #routine-toggle {
+      margin-top: 0.5em;
+    }
+    #children-container {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-around;
+      margin: 1em;
+    }
+    .child-card {
+      background: white;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      border-radius: 5px;
+      margin: 1em;
+      padding: 1em;
+      flex: 1 0 300px;
+      max-width: 320px;
+    }
+    .child-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .stars {
+      display: flex;
+      align-items: center;
+    }
+    .stars span {
+      font-size: 1.2em;
+      margin-left: 0.5em;
+    }
+    .task-list {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 1em;
+    }
+    .task-column {
+      flex: 1 0 45%;
+      padding: 0.5em;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      min-height: 150px;
+      background-color: #f4f4f4;
+    }
+    .task-column h4 {
+      margin-top: 0;
+      text-align: center;
+    }
+    .task {
+      background: white;
+      border: 1px solid #ccc;
+      margin: 0.3em 0;
+      padding: 0.3em;
+      border-radius: 3px;
+      cursor: grab;
+    }
+    .task.dragging {
+      opacity: 0.5;
+    }
+    .add-task {
+      margin-top: 0.5em;
+      display: flex;
+    }
+    .add-task input {
+      flex: 1;
+      padding: 0.3em;
+      margin-right: 0.3em;
+    }
+    .reset-container {
+      text-align: center;
+      margin: 1em;
+    }
+    .task {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5em;
+    }
+    .task-text {
+      flex: 1;
+    }
+    .task-delete {
+      background: transparent;
+      color: #666;
+      border: 0;
+      font-size: 18px;
+      line-height: 1;
+      padding: 0 6px;
+      cursor: pointer;
+    }
+    .task-delete:hover {
+      color: #111;
+    }
+    button {
+      padding: 0.4em 0.6em;
+      border: none;
+      border-radius: 3px;
+      background-color: #4a90e2;
+      color: white;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #357ab8;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Otis, Louis & Teddys Att Göra!</h1>
+    <div id="routine-toggle">
+      Rutin:
+      <button id="morningBtn">Morgon</button>
+      <button id="eveningBtn">Kväll</button>
+    </div>
+  </header>
+  <div id="children-container"></div>
+  <div class="reset-container">
+    <button id="manualResetBtn">Återställ</button>
+  </div>
+  <script>
+    // Key for storing data in localStorage
+    const STORAGE_KEY = 'routineData';
+    // Default children names; adjust as desired
+    const defaultChildren = ['Teddy', 'Otis', 'Loui'];
+    let data;
+
+    // Initialize or load data
+    function initData() {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        data = JSON.parse(stored);
+      } else {
+        data = {
+          routine: 'morgon',
+          children: defaultChildren.map(name => ({
+            name,
+            tasks: { morgon: [], kväll: [] }
+          }))
+        };
+        saveData();
+      }
+    }
+
+    function saveData() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    }
+
+    // Render the entire interface
+    function render() {
+      const container = document.getElementById('children-container');
+      container.innerHTML = '';
+      data.children.forEach((child, childIndex) => {
+        const card = document.createElement('div');
+        card.className = 'child-card';
+
+        // Header with name and stars
+        const header = document.createElement('div');
+        header.className = 'child-header';
+        const nameElem = document.createElement('h3');
+        nameElem.textContent = child.name;
+        const starElem = document.createElement('div');
+        starElem.className = 'stars';
+        const starIcon = document.createElement('span');
+        starIcon.textContent = '⭐';
+        const starCount = document.createElement('span');
+        starCount.id = `stars-${childIndex}`;
+        const doneCount = child.tasks[data.routine]
+          .filter(t => t.completed).length;
+        starCount.textContent = doneCount;
+        starElem.appendChild(starIcon);
+        starElem.appendChild(starCount);
+        header.appendChild(nameElem);
+        header.appendChild(starElem);
+        card.appendChild(header);
+
+        // Task lists container
+        const listContainer = document.createElement('div');
+        listContainer.className = 'task-list';
+
+        // To‑Do column
+        const todoCol = document.createElement('div');
+        todoCol.className = 'task-column';
+        todoCol.id = `todo-${childIndex}`;
+        const todoHeader = document.createElement('h4');
+        todoHeader.textContent = 'To Do';
+        todoCol.appendChild(todoHeader);
+
+        // Done column
+        const doneCol = document.createElement('div');
+        doneCol.className = 'task-column';
+        doneCol.id = `done-${childIndex}`;
+        const doneHeader = document.createElement('h4');
+        doneHeader.textContent = 'Done';
+        doneCol.appendChild(doneHeader);
+
+        // Populate tasks for current routine
+        const routineTasks = child.tasks[data.routine];
+        routineTasks.forEach((task, taskIndex) => {
+          const taskElem = document.createElement('div');
+          taskElem.className = 'task';
+          taskElem.draggable = true;
+          taskElem.dataset.childIndex = childIndex;
+          taskElem.dataset.taskIndex = taskIndex;
+
+          // text span
+          const textSpan = document.createElement('span');
+          textSpan.className = 'task-text';
+          textSpan.textContent = task.text;
+
+          // delete button
+          const delBtn = document.createElement('button');
+          delBtn.className = 'task-delete';
+          delBtn.type = 'button';
+          delBtn.textContent = '×';
+
+          // prevent drag from starting when tapping delete
+          delBtn.addEventListener('pointerdown', (e) => {
+            e.stopPropagation();
+          });
+
+          // delete action
+          delBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+
+            const ok = window.confirm('Ta bort?');
+            if (!ok) return;   // "Nej"
+
+            data.children[childIndex].tasks[data.routine].splice(taskIndex, 1);
+            saveData();
+            render();
+          });
+          taskElem.appendChild(textSpan);
+          taskElem.appendChild(delBtn);
+          if (task.completed) {
+            doneCol.appendChild(taskElem);
+          } else {
+            todoCol.appendChild(taskElem);
+          }
+        });
+
+        // Attach drag‑and‑drop handlers
+        addDragHandlers(todoCol);
+        addDragHandlers(doneCol);
+
+        listContainer.appendChild(todoCol);
+        listContainer.appendChild(doneCol);
+        card.appendChild(listContainer);
+
+        // Add Task input for each child
+        const addTaskContainer = document.createElement('div');
+        addTaskContainer.className = 'add-task';
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.placeholder = 'New task';
+        const addButton = document.createElement('button');
+        addButton.textContent = 'Add';
+        addButton.addEventListener('click', () => {
+          const text = input.value.trim();
+          if (text) {
+            data.children[childIndex].tasks[data.routine].push({ text, completed: false });
+            saveData();
+            render();
+          }
+          input.value = '';
+        });
+        addTaskContainer.appendChild(input);
+        addTaskContainer.appendChild(addButton);
+        card.appendChild(addTaskContainer);
+        container.appendChild(card);
+      });
+    }
+
+    // Drag‑and‑drop functions
+    let draggedTaskElem = null;
+    function addDragHandlers(column) {
+      column.addEventListener('dragstart', (event) => {
+        if (event.target.classList.contains('task')) {
+          draggedTaskElem = event.target;
+          event.target.classList.add('dragging');
+          event.dataTransfer.effectAllowed = 'move';
+          event.dataTransfer.setData('text/plain', ''); // required by Firefox
+        }
+      });
+      column.addEventListener('dragend', () => {
+        if (draggedTaskElem) {
+          draggedTaskElem.classList.remove('dragging');
+          draggedTaskElem = null;
+        }
+      });
+      column.addEventListener('dragover', (event) => {
+        if (draggedTaskElem) {
+          event.preventDefault();
+        }
+      });
+      column.addEventListener('drop', (event) => {
+        if (!draggedTaskElem) return;
+        event.preventDefault();
+        const fromChild = parseInt(draggedTaskElem.dataset.childIndex);
+        const taskIndex = parseInt(draggedTaskElem.dataset.taskIndex);
+        const toChild = parseInt(column.id.split('-')[1]);
+        const isDoneColumn = column.id.startsWith('done');
+
+        // Remove from original list
+        const taskObj = data.children[fromChild].tasks[data.routine][taskIndex];
+        data.children[fromChild].tasks[data.routine].splice(taskIndex, 1);
+
+        // Move and update completion flag
+        taskObj.completed = isDoneColumn;
+        data.children[toChild].tasks[data.routine].push(taskObj);
+
+        
+        saveData();
+        render();
+      });
+    }
+
+    // Routine toggle buttons
+    document.getElementById('morningBtn').addEventListener('click', () => {
+      data.routine = 'morgon';
+      saveData();
+      render();
+    });
+    document.getElementById('eveningBtn').addEventListener('click', () => {
+      data.routine = 'kväll';
+      saveData();
+      render();
+    });
+
+    // Manual reset: clears completions and star counts for both routines
+    document.getElementById('manualResetBtn').addEventListener('click', () => {
+      if (confirm('Vill du återställa rutiner och stjärnor?')) {
+        data.children.forEach(child => {
+          child.tasks.morning.forEach(task => task.completed = false);
+          child.tasks.evening.forEach(task => task.completed = false);
+        });
+        saveData();
+        render();
+      }
+    });
+
+    // Initialize and render on page load
+    initData();
+    render();
+  </script>
+</body>
+</html>
