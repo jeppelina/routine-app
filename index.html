@@ -6,14 +6,25 @@
   <title>Otis, Loui & Teddys Att Göra!</title>
 
   <style>
+    :root {
+      --bg: #f6f7f6;
+      --card: #ffffff;
+      --header: #6b8f71;
+      --accent: #6b8f71;
+      --accent-hover: #5a7a60;
+      --done-bg: #e8f2eb;
+      --task-bg: #f3f4f3;
+      --task-done-bg: #e8f2eb;
+    }
+
     body {
       font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
       margin: 0;
       padding: 0;
-      background: #fafafa;
+      background: var(--bg);
     }
     header {
-      background: #4a90e2;
+      background: var(--header);
       color: white;
       padding: 1em;
       text-align: center;
@@ -48,7 +59,7 @@
       gap: 1em;
     }
     .child-card {
-      background: white;
+      background: var(--card);
       box-shadow: 0 2px 6px rgba(0,0,0,0.08);
       border-radius: 10px;
       padding: 1em;
@@ -96,8 +107,13 @@
       border: 1px solid #ddd;
       border-radius: 8px;
       min-height: 180px;
-      background: #f4f4f4;
+      background: var(--task-bg);
     }
+
+    .task-column.done { 
+      background: var(--task-done-bg);
+    }
+
     .task-column h4 {
       margin: 0.25em 0 0.5em 0;
       text-align: center;
@@ -185,12 +201,13 @@
       padding: 0.55em 0.8em;
       border: none;
       border-radius: 8px;
-      background: #4a90e2;
+      background: var(--accent);
       color: white;
       cursor: pointer;
       font-size: 16px;
     }
-    button:hover { background: #357ab8; }
+
+    button:hover { background: var(--accent-hover); }
 
     /* Optional: highlight dragged item */
     .sortable-ghost {
@@ -223,6 +240,35 @@
     const STORAGE_KEY = 'routineData_v2';
     const defaultChildren = ['Teddy', 'Otis', 'Loui'];
     let data;
+
+    // ===== THEMES (added) =====
+    const THEMES = {
+      morgon: {
+        '--bg': '#f3f7f2',
+        '--card': '#ffffff',
+        '--header': '#4e7d4e',
+        '--accent': '#4e7d4e',
+        '--accent-hover': '#3f653f',
+        '--task-bg': '#e6efe6',
+        '--task-done-bg': '#cfe2cf'
+      },
+      kväll: {
+        '--bg': '#f3f1f7',
+        '--card': '#ffffff',
+        '--header': '#6b5ca5',
+        '--accent': '#6b5ca5',
+        '--accent-hover': '#574a86',
+        '--task-bg': '#ebe7f2',
+        '--task-done-bg': '#d8d1ea'
+      }
+    };
+
+    function applyThemeForRoutine() {
+      const theme = THEMES[data.routine] || THEMES.morgon;
+      const root = document.documentElement;
+      Object.entries(theme).forEach(([k, v]) => root.style.setProperty(k, v));
+    }
+    // ==========================
 
     function makeId() {
       // stable-enough unique id for local use
@@ -289,7 +335,7 @@
         listContainer.className = 'task-list';
 
         const todoCol = document.createElement('div');
-        todoCol.className = 'task-column';
+        todoCol.className = 'task-column todo';
         todoCol.innerHTML = `<h4>Att göra</h4>`;
         const todoItems = document.createElement('div');
         todoItems.className = 'task-items';
@@ -297,7 +343,7 @@
         todoCol.appendChild(todoItems);
 
         const doneCol = document.createElement('div');
-        doneCol.className = 'task-column';
+        doneCol.className = 'task-column done';
         doneCol.innerHTML = `<h4>Klar</h4>`;
         const doneItems = document.createElement('div');
         doneItems.className = 'task-items';
@@ -445,11 +491,13 @@
     document.getElementById('morningBtn').addEventListener('click', () => {
       data.routine = 'morgon';
       saveData();
+      applyThemeForRoutine();
       render();
     });
     document.getElementById('eveningBtn').addEventListener('click', () => {
       data.routine = 'kväll';
       saveData();
+      applyThemeForRoutine();
       render();
     });
 
@@ -467,6 +515,7 @@
     });
 
     initData();
+    applyThemeForRoutine();
     render();
   </script>
 </body>
