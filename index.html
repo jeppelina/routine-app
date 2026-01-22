@@ -55,6 +55,13 @@
       flex: 1 0 320px;
       max-width: 460px;
     }
+    /* Force single column earlier (tablet portrait) */
+      @media (max-width: 900px) {
+      .child-card {
+      flex: 1 0 100%;
+      max-width: 100%;
+      }
+    }
     .child-header {
       display: flex;
       align-items: center;
