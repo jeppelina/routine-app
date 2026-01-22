@@ -213,6 +213,53 @@
     .sortable-ghost {
       opacity: 0.35;
     }
+
+    /* ===== Task menu modal (added) ===== */
+    .overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.35);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+    }
+    .hidden { display: none; }
+
+    .modal {
+      width: min(320px, 90vw);
+      background: var(--card);
+      border-radius: 12px;
+      padding: 14px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+      text-align: left;
+    }
+    .modal-title {
+      font-weight: 600;
+      margin-bottom: 10px;
+    }
+    .modal-actions {
+      display: flex;
+      gap: 10px;
+      justify-content: space-between;
+    }
+    .modal-btn {
+      flex: 1;
+      padding: 0.55em 0.6em;
+      border-radius: 10px;
+      border: none;
+      background: var(--accent);
+      color: white;
+      cursor: pointer;
+      font-size: 15px;
+    }
+    .modal-btn.secondary {
+      background: #888;
+    }
+    .modal-btn.danger {
+      background: #c0392b;
+    }
+    /* ================================ */
   </style>
 </head>
 
@@ -232,6 +279,19 @@
   <div class="reset-container">
     <button id="manualResetBtn">Återställ</button>
   </div>
+
+  <!-- ===== Task menu modal (added) ===== -->
+  <div id="taskMenuOverlay" class="overlay hidden">
+    <div class="modal">
+      <div class="modal-title">Välj</div>
+      <div class="modal-actions">
+        <button id="taskMenuEditBtn" class="modal-btn">Redigera</button>
+        <button id="taskMenuDeleteBtn" class="modal-btn danger">Ta bort</button>
+        <button id="taskMenuCancelBtn" class="modal-btn secondary">Avbryt</button>
+      </div>
+    </div>
+  </div>
+  <!-- ================================ -->
 
   <!-- SortableJS -->
   <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
@@ -269,6 +329,62 @@
       Object.entries(theme).forEach(([k, v]) => root.style.setProperty(k, v));
     }
     // ==========================
+
+    // ===== Task menu state + handlers (added) =====
+    let taskMenuState = null;
+
+    function openTaskMenu(childIndex, taskId) {
+      taskMenuState = { childIndex, taskId };
+      document.getElementById('taskMenuOverlay').classList.remove('hidden');
+    }
+
+    function closeTaskMenu() {
+      taskMenuState = null;
+      document.getElementById('taskMenuOverlay').classList.add('hidden');
+    }
+
+    // Wire modal buttons immediately (overlay exists before script runs)
+    const overlayEl = document.getElementById('taskMenuOverlay');
+    document.getElementById('taskMenuCancelBtn').addEventListener('click', closeTaskMenu);
+    overlayEl.addEventListener('click', (e) => {
+      if (e.target === overlayEl) closeTaskMenu(); // tap outside
+    });
+
+    document.getElementById('taskMenuDeleteBtn').addEventListener('click', () => {
+      if (!taskMenuState) return;
+
+      const ok = window.confirm('Ta bort?');
+      if (!ok) return;
+
+      const { childIndex, taskId } = taskMenuState;
+      const arr = data.children[childIndex].tasks[data.routine];
+      const idx = arr.findIndex(t => t.id === taskId);
+      if (idx >= 0) arr.splice(idx, 1);
+
+      saveData();
+      closeTaskMenu();
+      render();
+    });
+
+    document.getElementById('taskMenuEditBtn').addEventListener('click', () => {
+      if (!taskMenuState) return;
+
+      const { childIndex, taskId } = taskMenuState;
+      const arr = data.children[childIndex].tasks[data.routine];
+      const task = arr.find(t => t.id === taskId);
+      if (!task) { closeTaskMenu(); return; }
+
+      const newText = window.prompt('Redigera uppgift:', task.text);
+      if (newText === null) return; // cancelled
+      const trimmed = newText.trim();
+      if (!trimmed) return; // ignore empty
+
+      task.text = trimmed;
+      saveData();
+      closeTaskMenu();
+      render();
+    });
+    // =============================================
 
     function makeId() {
       // stable-enough unique id for local use
@@ -365,16 +481,10 @@
           delBtn.type = 'button';
           delBtn.textContent = '×';
 
+          // open menu (instead of immediate delete)
           delBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            const ok = window.confirm('Ta bort?');
-            if (!ok) return;
-
-            const arr = data.children[childIndex].tasks[data.routine];
-            const idx = arr.findIndex(t => t.id === task.id);
-            if (idx >= 0) arr.splice(idx, 1);
-            saveData();
-            render();
+            openTaskMenu(childIndex, task.id);
           });
 
           taskElem.appendChild(textSpan);
