@@ -19,7 +19,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Otis, Loui & Teddys Rutiner!">
 
-  <title>Otis, Loui & Teddys Rutiner!</title>
+  <title>Otis, Loui & Teddys Att Göra!</title>
 
   <style>
     :root {
@@ -339,6 +339,30 @@
     const defaultChildren = ['Teddy', 'Otis', 'Loui'];
     let data;
 
+    const STARTER_TASKS = {
+      Teddy: {
+        morgon: ["Ta på kläder 👕👖🧦", "Lägga pyjamas under kudden 🛏️", "Ät frukost 🥣🥪", "Borsta tänderna 🦷🪥",
+         "Lägg fram ytterkläder 🥾🧤", "Ta på ytterkläder 🦸🏼"],
+        kväll:  ["Pyjamas 🩳👕", "Häng upp morgondagens kläder på krok 🪝", "Lägg i tvättkorgen 🧺🫧",
+         "Borsta tänderna 🦷🪥", "Kissa 🚽", "🛌📖"],
+        helg:   ["Träna på något i 30 minuter", "Hjälp till med en hushållssyssla", "Städa ditt rum 🧹", "Gå ut och lek 1 timme"]
+      },
+      Otis: {
+        morgon: ["Ta på kläder 👕👖🧦", "Lägga pyjamas under kudden 🛏️", "Ät frukost 🥣🥪", "Borsta tänderna 🦷🪥",
+         "Lägg fram ytterkläder 🥾🧤", "Ta på ytterkläder 🦸🏼"],
+        kväll:  ["Läsa läxan 15 minuter 📖", "Packa skolväskan 🎒 (gympa, läxan, utflykt)", "Pyjamas 🩳👕", "Häng upp morgondagens kläder på krok 🪝",
+         "Lägg i tvättkorgen 🧺🫧", "Borsta tänderna 🦷🪥"],
+        helg:   ["Träna på något i 30 minuter", "Hjälp till med en hushållssyssla", "Städa ditt rum 🧹", "Gå ut och lek 1 timme"]
+      },
+      Loui: {
+        morgon: ["Ta på kläder 👕👖🧦", "Lägga pyjamas under kudden 🛏️", "Ät frukost 🥣🥪", "Borsta tänderna 🦷🪥",
+         "Lägg fram ytterkläder 🥾🧤", "Ta på ytterkläder 🦸🏼"],
+        kväll:  ["Läsa läxan 15 minuter 📖", "Packa skolväskan 🎒 (gympa, läxan, utflykt)", "Pyjamas 🩳👕", "Häng upp morgondagens kläder på krok 🪝",
+         "Lägg i tvättkorgen 🧺🫧", "Borsta tänderna 🦷🪥"],
+        helg:   ["Träna på något i 30 minuter", "Hjälp till med en hushållssyssla", "Städa ditt rum 🧹", "Gå ut och lek 1 timme"]
+      }
+    };
+
     // ===== THEMES (added) =====
     const THEMES = {
       morgon: {
@@ -439,29 +463,52 @@
     }
 
     function initData() {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        data = JSON.parse(stored);
-        // small migration: ensure tasks have ids
-        data.children.forEach(ch => {
-          ['morgon','kväll','helg'].forEach(r => {
-            if (!ch.tasks[r]) ch.tasks[r] = [];
-            ch.tasks[r].forEach(t => { if (!t.id) t.id = makeId(); });
-          });
-        });
-        saveData();
-        return;
-      }
+  const stored = localStorage.getItem(STORAGE_KEY);
 
-      data = {
-        routine: 'morgon',
-        children: defaultChildren.map(name => ({
-          name,
-          tasks: { morgon: [], kväll: [], helg: [] } // each task: {id, text, completed}
-        }))
-      };
-      saveData();
-    }
+  // ---- Existing data: load + migrate ----
+  if (stored) {
+    data = JSON.parse(stored);
+
+    data.children.forEach(ch => {
+      ['morgon', 'kväll', 'helg'].forEach(r => {
+        if (!ch.tasks[r]) ch.tasks[r] = [];
+        ch.tasks[r].forEach(t => {
+          if (!t.id) t.id = makeId();
+        });
+      });
+    });
+
+    saveData();
+    return;
+  }
+
+  // ---- First run: create + seed starter tasks ----
+  data = {
+    routine: 'morgon',
+    children: defaultChildren.map(name => ({
+      name,
+      tasks: { morgon: [], kväll: [], helg: [] }
+    }))
+  };
+
+  // Seed starter tasks
+  data.children.forEach(child => {
+    const preset = STARTER_TASKS[child.name];
+    if (!preset) return;
+
+    ['morgon', 'kväll', 'helg'].forEach(r => {
+      (preset[r] || []).forEach(text => {
+        child.tasks[r].push({
+          id: makeId(),
+          text,
+          completed: false
+        });
+      });
+    });
+  });
+
+  saveData();
+}
 
     function saveData() {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
