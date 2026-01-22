@@ -1,23 +1,11 @@
 <!DOCTYPE html>
 <html lang="sv">
 <head>
-
-<!-- iOS / iPadOS Home Screen icon -->
-<link rel="apple-touch-icon" sizes="180x180" href="icons/routine-icon-180.png">
-
-<!-- PWA / Chrome -->
-<link rel="manifest" href="manifest.webmanifest">
-<meta name="theme-color" content="#4e7d4e">
-
-<!-- Optional favicon -->
-<link rel="icon" type="image/png" sizes="32x32" href="icons/routine-icon-32.png">
-
-<!-- iOS standalone mode -->
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="Att Göra">
+  <meta name="apple-mobile-web-app-title" content="Otis, Loui & Teddys Rutiner!">
 
   <title>Otis, Loui & Teddys Att Göra!</title>
 
@@ -53,7 +41,24 @@
       justify-content: space-between;
       gap: 1em;
     }
+    .header-title {
+      display: flex;
+      align-items: center;
+      gap: 0.6em;
+    }
 
+    .app-icon {
+      width: 34px;
+      height: 34px;
+      border-radius: 8px;   /* soft iOS feel */
+      flex-shrink: 0;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+    }
+    @media (max-width: 480px) {
+      .app-icon {
+        display: none;
+      }
+    }
     /* tighter buttons in header */
     #routine-toggle button {
       padding: 0.45em 0.7em;
@@ -282,7 +287,11 @@
 <body>
   <header>
     <div class="header-row">
-      <h1>Otis, Loui & Teddys Att Göra!</h1>
+      <div class="header-title">
+        <img src="icons/routine-icon-180.png" alt="" class="app-icon">
+        <h1>Otis, Loui & Teddys Att Göra!</h1>
+      </div>
+  
       <div id="routine-toggle">
         <button id="morningBtn">Morgon</button>
         <button id="eveningBtn">Kväll</button>
