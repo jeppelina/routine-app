@@ -6,7 +6,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Att Göra">
-  
+
   <title>Otis, Loui & Teddys Att Göra!</title>
 
   <style>
@@ -274,6 +274,7 @@
       <div id="routine-toggle">
         <button id="morningBtn">Morgon</button>
         <button id="eveningBtn">Kväll</button>
+        <button id="weekendBtn">Helg</button>
       </div>
     </div>
   </header>
@@ -324,7 +325,16 @@
         '--accent-hover': '#574a86',
         '--task-bg': '#ebe7f2',
         '--task-done-bg': '#d8d1ea'
-      }
+      },
+      helg: {
+        '--bg': '#fff8f0',          // warm cream
+        '--card': '#ffffff',
+        '--header': '#ff9f1c',      // orange
+        '--accent': '#2ec4b6',      // turquoise
+        '--accent-hover': '#1fa89c',
+        '--task-bg': '#eaf6ff',     // sky blue
+        '--task-done-bg': '#f1ffe7' // light green
+}
     };
 
     function applyThemeForRoutine() {
@@ -401,7 +411,8 @@
         data = JSON.parse(stored);
         // small migration: ensure tasks have ids
         data.children.forEach(ch => {
-          ['morgon','kväll'].forEach(r => {
+          ['morgon','kväll','helg'].forEach(r => {
+            if (!ch.tasks[r]) ch.tasks[r] = [];
             ch.tasks[r].forEach(t => { if (!t.id) t.id = makeId(); });
           });
         });
@@ -413,7 +424,7 @@
         routine: 'morgon',
         children: defaultChildren.map(name => ({
           name,
-          tasks: { morgon: [], kväll: [] }  // each task: {id, text, completed}
+          tasks: { morgon: [], kväll: [], helg: [] } // each task: {id, text, completed}
         }))
       };
       saveData();
@@ -610,6 +621,12 @@
     });
     document.getElementById('eveningBtn').addEventListener('click', () => {
       data.routine = 'kväll';
+      saveData();
+      applyThemeForRoutine();
+      render();
+    });
+    document.getElementById('weekendBtn').addEventListener('click', () => {
+      data.routine = 'helg';
       saveData();
       applyThemeForRoutine();
       render();
