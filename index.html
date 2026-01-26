@@ -717,8 +717,7 @@
       if (!confirm('Vill du återställa rutiner och stjärnor?')) return;
 
       data.children.forEach(child => {
-        child.tasks.morgon.forEach(t => t.completed = false);
-        child.tasks.kväll.forEach(t => t.completed = false);
+        child.tasks[data.routine].forEach(t => t.completed = false);
       });
 
       saveData();
