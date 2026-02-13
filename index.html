@@ -329,6 +329,43 @@
       </div>
     </div>
   </div>
+
+<!-- ===== Parent add-task modal (hidden) ===== -->
+<div id="parentOverlay" class="overlay hidden">
+  <div class="modal">
+    <div class="modal-title">Förälder: Lägg till uppgift</div>
+
+    <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:12px;">
+      <label style="font-size:14px; opacity:0.9;">
+        Barn:
+        <select id="parentChildSelect" style="width:100%; padding:10px; border-radius:10px; border:1px solid #ddd;">
+        </select>
+      </label>
+
+      <label style="font-size:14px; opacity:0.9;">
+        Rutin:
+        <select id="parentRoutineSelect" style="width:100%; padding:10px; border-radius:10px; border:1px solid #ddd;">
+          <option value="morgon">Morgon</option>
+          <option value="kväll">Kväll</option>
+          <option value="helg">Helg</option>
+        </select>
+      </label>
+
+      <label style="font-size:14px; opacity:0.9;">
+        Uppgift:
+        <input id="parentTaskInput" type="text" placeholder="Ny uppgift…" 
+               style="width:100%; padding:10px; border-radius:10px; border:1px solid #ddd; font-size:16px;">
+      </label>
+    </div>
+
+    <div class="modal-actions">
+      <button id="parentAddBtn" class="modal-btn">Spara</button>
+      <button id="parentCloseBtn" class="modal-btn secondary">Stäng</button>
+    </div>
+  </div>
+</div>
+<!-- ======================================== -->
+  
   <!-- ================================ -->
 
   <!-- SortableJS -->
@@ -457,6 +494,89 @@
     });
     // =============================================
 
+
+    // ===== Hidden parent mode: tap app icon 7 times =====
+let secretTaps = 0;
+let secretTimer = null;
+
+function openParentModal() {
+  const overlay = document.getElementById('parentOverlay');
+  const childSelect = document.getElementById('parentChildSelect');
+  const routineSelect = document.getElementById('parentRoutineSelect');
+  const input = document.getElementById('parentTaskInput');
+
+  // Populate children dropdown
+  childSelect.innerHTML = '';
+  data.children.forEach((ch, idx) => {
+    const opt = document.createElement('option');
+    opt.value = String(idx);
+    opt.textContent = ch.name;
+    childSelect.appendChild(opt);
+  });
+
+  // Default routine = current routine
+  routineSelect.value = data.routine;
+
+  input.value = '';
+  overlay.classList.remove('hidden');
+  setTimeout(() => input.focus(), 50);
+}
+
+function closeParentModal() {
+  document.getElementById('parentOverlay').classList.add('hidden');
+}
+
+// close on outside tap
+const parentOverlayEl = document.getElementById('parentOverlay');
+parentOverlayEl.addEventListener('click', (e) => {
+  if (e.target === parentOverlayEl) closeParentModal();
+});
+
+document.getElementById('parentCloseBtn').addEventListener('click', closeParentModal);
+
+document.getElementById('parentAddBtn').addEventListener('click', () => {
+  const childIndex = parseInt(document.getElementById('parentChildSelect').value, 10);
+  const routine = document.getElementById('parentRoutineSelect').value;
+  const text = document.getElementById('parentTaskInput').value.trim();
+
+  if (!text) return;
+
+  data.children[childIndex].tasks[routine].push({
+    id: makeId(),
+    text,
+    completed: false
+  });
+
+  saveData();
+
+  // If you added to the routine you're viewing, re-render immediately
+  render();
+  closeParentModal();
+});
+
+// Secret gesture on the app icon
+const iconEl = document.querySelector('.app-icon');
+if (iconEl) {
+  iconEl.addEventListener('click', () => {
+    secretTaps += 1;
+
+    if (!secretTimer) {
+      secretTimer = setTimeout(() => {
+        secretTaps = 0;
+        secretTimer = null;
+      }, 3000); // 3 seconds window
+    }
+
+    if (secretTaps >= 7) {
+      clearTimeout(secretTimer);
+      secretTaps = 0;
+      secretTimer = null;
+      openParentModal();
+    }
+  });
+}
+// ================================================
+    
     function makeId() {
       // stable-enough unique id for local use
       return 't_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
