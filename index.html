@@ -593,34 +593,7 @@
         listContainer.appendChild(doneCol);
         card.appendChild(listContainer);
 
-        // add task
-        const addTaskContainer = document.createElement('div');
-        addTaskContainer.className = 'add-task';
 
-        const input = document.createElement('input');
-        input.type = 'text';
-        input.placeholder = 'Ny uppgift';
-
-        const addButton = document.createElement('button');
-        addButton.textContent = 'Lägg till';
-
-        addButton.addEventListener('click', () => {
-          const text = input.value.trim();
-          if (!text) return;
-
-          data.children[childIndex].tasks[data.routine].push({
-            id: makeId(),
-            text,
-            completed: false
-          });
-
-          saveData();
-          render();
-        });
-
-        addTaskContainer.appendChild(input);
-        addTaskContainer.appendChild(addButton);
-        card.appendChild(addTaskContainer);
 
         container.appendChild(card);
       });
