@@ -2,309 +2,346 @@
 <html lang="sv">
 <head>
 
-  <!-- iOS / iPadOS Home Screen icon -->
 <link rel="apple-touch-icon" sizes="180x180" href="icons/routine-icon-180.png">
-
-<!-- PWA / Chrome -->
 <link rel="manifest" href="manifest.webmanifest">
-<meta name="theme-color" content="#4e7d4e">
-
-<!-- Optional favicon -->
+<meta name="theme-color" content="#7C8A6B">
 <link rel="icon" type="image/png" sizes="32x32" href="icons/routine-icon-32.png">
 
-<!-- iOS standalone mode -->
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="Otis, Loui & Teddys Rutiner!">
+  <meta name="apple-mobile-web-app-title" content="Rutiner">
 
-  <title>Otis, Loui & Teddys Att Göra!</title>
+  <title>Otis, Loui & Teddys Rutiner</title>
 
   <style>
     :root {
-      --bg: #f6f7f6;
-      --card: #ffffff;
-      --header: #6b8f71;
-      --accent: #6b8f71;
-      --accent-hover: #5a7a60;
-      --done-bg: #e8f2eb;
-      --task-bg: #f3f4f3;
-      --task-done-bg: #e8f2eb;
+      --paper: #F4F0E8;
+      --card: #FBFAF6;
+      --ink: #3A3833;
+      --muted: #8C8578;
+      --faint: #B7B0A2;
+      --line: #E8E2D5;
+      --accent: #7C8A6B;
+      --accent-hover: #6C7A5C;
+      --task-bg: #F6F3EB;
+      --task-bg-hover: #F0EBDF;
+      --serif: ui-serif, Georgia, "Iowan Old Style", Palatino, serif;
+      --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     }
+
+    * { box-sizing: border-box; }
 
     body {
-      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      font-family: var(--sans);
       margin: 0;
-      padding: 0;
-      background: var(--bg);
+      background: var(--paper);
+      color: var(--ink);
+      transition: background 0.4s ease;
+      -webkit-font-smoothing: antialiased;
     }
-    header {
-      background: var(--header);
-      color: white;
-      padding: 1em;
-      text-align: center;
-    }
-    #routine-toggle { margin-top: 0.5em; }
 
-    .header-row {
+    header { padding: 18px 16px 4px; }
+    .app-bar {
+      max-width: 1100px;
+      margin: 0 auto;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 1em;
+      gap: 16px;
     }
-    .header-title {
-      display: flex;
-      align-items: center;
-      gap: 0.6em;
-    }
-
+    .brand { display: flex; align-items: center; gap: 10px; }
     .app-icon {
-      width: 34px;
-      height: 34px;
-      border-radius: 8px;   /* soft iOS feel */
+      width: 30px; height: 30px;
+      border-radius: 8px;
       flex-shrink: 0;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+      cursor: pointer;
     }
-    @media (max-width: 480px) {
-      .app-icon {
-        display: none;
-      }
-    }
-    /* tighter buttons in header */
-    #routine-toggle button {
-      padding: 0.45em 0.7em;
-      font-size: 15px;
-    }
-
-    /* make title not wrap too early */
     header h1 {
       margin: 0;
-      font-size: 1.3em;
-      white-space: nowrap;
+      font-family: var(--serif);
+      font-weight: 500;
+      font-size: 22px;
+      letter-spacing: 0.2px;
+    }
+
+    .routine-toggle {
+      display: inline-flex;
+      background: #E7E1D3;
+      border-radius: 999px;
+      padding: 3px;
+      gap: 2px;
+    }
+    .routine-toggle button {
+      border: 0;
+      background: transparent;
+      color: var(--muted);
+      padding: 7px 15px;
+      border-radius: 999px;
+      font-size: 14px;
+      cursor: pointer;
+      transition: color 0.2s;
+    }
+    .routine-toggle button.active {
+      background: var(--card);
+      color: var(--ink);
+      box-shadow: 0 1px 2px rgba(0,0,0,0.08);
     }
 
     #children-container {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: space-around;
-      margin: 1em;
-      gap: 1em;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 16px;
+      max-width: 1100px;
+      margin: 18px auto 0;
+      padding: 0 16px;
     }
+
     .child-card {
       background: var(--card);
-      box-shadow: 0 2px 6px rgba(0,0,0,0.08);
-      border-radius: 10px;
-      padding: 1em;
-      flex: 1 0 320px;
-      max-width: 500px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 16px 16px 18px;
+      transition: border-color 0.3s, box-shadow 0.3s;
     }
-    @media (max-width: 1024px) {
-      .child-card {
-        flex: 1 0 100%;
-        max-width: 80%; 
-      }
-    
-      #children-container {
-        justify-content: center;
-      }
+    .child-card.complete {
+      border-color: var(--accent);
+      box-shadow: inset 0 0 0 1px var(--accent);
     }
+
     .child-header {
       display: flex;
-      align-items: center;
+      align-items: baseline;
       justify-content: space-between;
-      gap: 0.75em;
-      padding-bottom: 0.1em;
-      margin-bottom: 0.1em;
+      gap: 10px;
     }
     .child-header h3 {
       margin: 0;
+      font-family: var(--serif);
+      font-weight: 500;
+      font-size: 21px;
     }
     .stars {
-      display: flex;
-      align-items: center;
-      gap: 0.35em;
-      font-size: 1.1em;
+      font-size: 14px;
+      color: var(--muted);
       white-space: nowrap;
     }
 
-    .task-list {
-      display: flex;
-      justify-content: space-between;
-      gap: 0.75em;
-      margin-top: 0.75em;
+    .progress-bar {
+      height: 6px;
+      background: #EDE8DC;
+      border-radius: 3px;
+      overflow: hidden;
+      margin: 12px 0 14px;
     }
-    .task-column {
-      flex: 1 0 0;
-      padding: 0.5em;
-      border: 1px solid #ddd;
-      border-radius: 8px;
-      min-height: 180px;
-      background: var(--task-bg);
-    }
-
-    .task-column.done { 
-      background: var(--task-done-bg);
+    .progress-fill {
+      height: 100%;
+      width: 0;
+      background: var(--accent);
+      border-radius: 3px;
+      transition: width 0.45s cubic-bezier(0.2, 0.8, 0.2, 1);
     }
 
-    .task-column h4 {
-      margin: 0.25em 0 0.5em 0;
-      text-align: center;
-      font-size: 0.95em;
-    }
-
-    /* container inside each column that Sortable owns */
-    .task-items {
-      min-height: 130px;
-      display: flex;
-      flex-direction: column;
-      gap: 0.4em;
-    }
+    .task-list { display: flex; flex-direction: column; gap: 7px; }
 
     .task {
-      background: white;
-      border: 1px solid #ddd;
-      padding: 0.45em 0.5em;
-      border-radius: 8px;
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      gap: 0.5em;
-
-      /* feels better on touch */
-      cursor: grab;
-    }
-
-    .task:active { cursor: grabbing; }
-
-    .task-text { flex: 1; }
-
-    /* iOS: prevent long-press selection/callout */
-    .task, .task * {
-      -webkit-user-select: none;
+      gap: 12px;
+      padding: 11px 12px;
+      border-radius: 12px;
+      background: var(--task-bg);
+      cursor: pointer;
       user-select: none;
-      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      transition: background 0.15s, transform 0.1s;
+    }
+    .task:hover { background: var(--task-bg-hover); }
+    .task:active { transform: scale(0.99); }
+
+    .task-check {
+      flex: 0 0 auto;
+      width: 24px; height: 24px;
+      border-radius: 50%;
+      border: 2px solid #D3CBB8;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.25s, border-color 0.25s;
+    }
+    .task-check .tick {
+      opacity: 0;
+      transform: scale(0.5);
+      transition: opacity 0.2s, transform 0.2s;
+    }
+    .task.done .task-check {
+      background: var(--accent);
+      border-color: var(--accent);
+      animation: checkPop 0.3s ease;
+    }
+    .task.done .task-check .tick { opacity: 1; transform: scale(1); }
+    @keyframes checkPop {
+      0% { transform: scale(1); }
+      40% { transform: scale(1.18); }
+      100% { transform: scale(1); }
     }
 
-    .task-delete {
+    .task-text {
+      flex: 1;
+      font-size: 15px;
+      line-height: 1.3;
+    }
+    .task.done .task-text {
+      color: var(--faint);
+      text-decoration: line-through;
+    }
+
+    .task-menu {
+      flex: 0 0 auto;
       background: transparent;
-      color: #666;
       border: 0;
+      color: #CBC3B1;
       font-size: 20px;
       line-height: 1;
-      padding: 0 6px;
+      padding: 2px 6px;
+      border-radius: 6px;
       cursor: pointer;
     }
-    .task-delete:hover { color: #111; }
+    .task-menu:hover { color: var(--muted); background: #ECE7DB; }
 
-    .add-task {
-      margin-top: 0.75em;
+    .pet-scene {
+      position: relative;
+      height: 168px;
+      margin: 0 0 12px;
+      border-radius: 12px;
+      overflow: hidden;
       display: flex;
-      gap: 0.5em;
+      align-items: flex-end;
+      justify-content: center;
     }
-    .add-task input {
-      flex: 1;
-      padding: 0.55em 0.6em;
-      border: 1px solid #ddd;
-      border-radius: 8px;
-      font-size: 16px; /* avoid iOS zoom */
+    .world-bg { position: absolute; inset: 0; z-index: 0; }
+    .world-bg svg { width: 100%; height: 100%; display: block; }
+    .pet-svg { position: relative; z-index: 1; width: 100%; height: 100%; display: block; }
+    .world-swap {
+      position: absolute; top: 8px; right: 8px; z-index: 2;
+      width: 30px; height: 30px; border-radius: 50%; padding: 0;
+      border: 0; background: rgba(255,255,255,0.32); color: #fff;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      transition: background 0.2s;
     }
-    
-    .add-task {
-      margin-top: 0.4em;
-      gap: 0.4em;
-    }
-    
-    .add-task input {
-      padding: 0.35em 0.5em;
-      font-size: 10px;
-      line-height: 1.0;
-    }
-    
-    .add-task button {
-      padding: 0.15em 0.5em;
-      font-size: 10px;
-    }
+    .world-swap:hover { background: rgba(255,255,255,0.5); }
 
-    .reset-container {
-      text-align: center;
-      margin: 1em;
-    }
-    button {
-      padding: 0.55em 0.8em;
-      border: none;
-      border-radius: 8px;
-      background: var(--accent);
-      color: white;
+    .grow { transform-box: fill-box; transform-origin: 50% 100%; transition: transform 0.5s cubic-bezier(0.2,0.85,0.25,1); }
+    .float { transform-box: fill-box; animation: floatY 6s ease-in-out infinite; }
+    .shake.go { animation: pshake 0.5s ease-in-out; }
+    .breathe { transform-box: fill-box; transform-origin: 50% 100%; animation: breathe 4.2s ease-in-out infinite; }
+    .tail { transform-box: fill-box; transform-origin: 82% 26%; animation: tailSway 3.6s ease-in-out infinite; }
+    .eyelid { transform-box: fill-box; transform-origin: 50% 0%; transform: scaleY(0); animation: blink 5.4s ease-in-out infinite; }
+    .hop.go { animation: phop 0.62s cubic-bezier(0.3,0.9,0.3,1); }
+    .bodyform { display: none; }
+    .bodyform.active { display: block; }
+    .trait { opacity: 0; transform-box: fill-box; transform-origin: 50% 100%; transform: scale(0) translateY(6px); transition: opacity 0.3s, transform 0.45s cubic-bezier(0.2,1.6,0.4,1); }
+    .trait.on { opacity: 1; transform: scale(1) translateY(0); }
+    .firetail.on .flame, .jetpack.on .flame { animation: flick 0.4s ease-in-out infinite alternate; transform-box: fill-box; transform-origin: 50% 0%; }
+    .bolt.on .zap { animation: zap 1s steps(2) infinite; }
+    .drone.on .rotor { animation: spin 0.12s linear infinite; transform-box: fill-box; transform-origin: 50% 50%; }
+    .burst { opacity: 0; transform-box: fill-box; transform-origin: 50% 50%; }
+    .burst.go { animation: burst 0.55s ease-out; }
+    .pet-spark { opacity: 0; transform-box: fill-box; transform-origin: 50% 50%; }
+    .pet-svg.party .pet-spark { animation: sparkle 1.4s ease-in-out infinite; }
+    .pet-svg.party .pet-spark.b { animation-delay: 0.5s; }
+    .pet-svg.party .pet-spark.c { animation-delay: 0.95s; }
+    @keyframes floatY { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }
+    @keyframes breathe { 0%,100%{transform:scale(1)} 50%{transform:scale(1.03,1.04)} }
+    @keyframes tailSway { 0%,100%{transform:rotate(-9deg)} 50%{transform:rotate(9deg)} }
+    @keyframes blink { 0%,90%,100%{transform:scaleY(0)} 93%,96%{transform:scaleY(1)} }
+    @keyframes phop { 0%{transform:translateY(0) scaleY(1)} 18%{transform:translateY(2px) scaleY(0.9)} 45%{transform:translateY(-30px) scaleY(1.06)} 70%{transform:translateY(0) scaleY(0.93)} 100%{transform:translateY(0) scaleY(1)} }
+    @keyframes pshake { 0%,100%{transform:translateX(0) rotate(0)} 20%{transform:translateX(-5px) rotate(-3deg)} 40%{transform:translateX(5px) rotate(3deg)} 60%{transform:translateX(-4px) rotate(-2deg)} 80%{transform:translateX(3px) rotate(1deg)} }
+    @keyframes flick { 0%{transform:scaleY(1)} 100%{transform:scaleY(1.22) scaleX(0.92)} }
+    @keyframes zap { 0%,100%{opacity:0.25} 50%{opacity:1} }
+    @keyframes spin { 0%{transform:scaleX(1)} 100%{transform:scaleX(-1)} }
+    @keyframes burst { 0%{opacity:0.85; transform:scale(0.2)} 100%{opacity:0; transform:scale(1.5)} }
+    @keyframes sparkle { 0%,100%{opacity:0; transform:scale(0.6)} 50%{opacity:1; transform:scale(1.12)} }
+
+    .reset-container { text-align: center; margin: 22px 0 28px; }
+    #manualResetBtn {
+      background: transparent;
+      border: 1px solid var(--line);
+      color: var(--muted);
+      border-radius: 999px;
+      padding: 9px 20px;
+      font-size: 14px;
       cursor: pointer;
-      font-size: 16px;
+      transition: border-color 0.2s, color 0.2s;
     }
+    #manualResetBtn:hover { border-color: var(--faint); color: var(--ink); }
 
-    button:hover { background: var(--accent-hover); }
-
-    /* Optional: highlight dragged item */
-    .sortable-ghost {
-      opacity: 0.35;
-    }
-
-    /* ===== Task menu modal (added) ===== */
     .overlay {
       position: fixed;
       inset: 0;
-      background: rgba(0,0,0,0.35);
+      background: rgba(45, 43, 38, 0.4);
       display: flex;
       align-items: center;
       justify-content: center;
       z-index: 9999;
     }
     .hidden { display: none; }
-
     .modal {
-      width: min(320px, 90vw);
+      width: min(340px, 90vw);
       background: var(--card);
-      border-radius: 12px;
-      padding: 14px;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+      border-radius: 16px;
+      padding: 18px;
+      box-shadow: 0 12px 34px rgba(0,0,0,0.22);
       text-align: left;
     }
-    .modal-title {
-      font-weight: 600;
-      margin-bottom: 10px;
-    }
-    .modal-actions {
-      display: flex;
-      gap: 10px;
-      justify-content: space-between;
-    }
+    .modal-title { font-family: var(--serif); font-size: 17px; margin-bottom: 12px; }
+    .modal-actions { display: flex; gap: 10px; justify-content: space-between; }
     .modal-btn {
       flex: 1;
-      padding: 0.55em 0.6em;
-      border-radius: 10px;
+      padding: 10px 12px;
+      border-radius: 12px;
       border: none;
       background: var(--accent);
-      color: white;
+      color: #FBFAF6;
       cursor: pointer;
       font-size: 15px;
     }
-    .modal-btn.secondary {
-      background: #888;
+    .modal-btn:hover { background: var(--accent-hover); }
+    .modal-btn.secondary { background: #9C978A; }
+    .modal-btn.danger { background: #B4614E; }
+    .modal label { font-size: 14px; color: var(--muted); }
+    .modal select, .modal input {
+      width: 100%;
+      padding: 10px;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      font-size: 16px;
+      margin-top: 4px;
+      font-family: var(--sans);
+      color: var(--ink);
+      background: #fff;
     }
-    .modal-btn.danger {
-      background: #c0392b;
-    }
-    /* ================================ */
   </style>
 </head>
 
 <body>
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+    <linearGradient id="petFire" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#D9542E"/><stop offset="0.5" stop-color="#E88C36"/><stop offset="1" stop-color="#F3C86A"/></linearGradient>
+    <radialGradient id="petFlash" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="#FFFFFF" stop-opacity="0.9"/><stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/></radialGradient>
+    <linearGradient id="wCity" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8C93B8"/><stop offset="0.55" stop-color="#C6A9BE"/><stop offset="1" stop-color="#E8C79E"/></linearGradient>
+    <linearGradient id="wJungle" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#E3EAD3"/><stop offset="1" stop-color="#CBDDBE"/></linearGradient>
+    <linearGradient id="wSpace" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#23264A"/><stop offset="1" stop-color="#3E3760"/></linearGradient>
+  </defs></svg>
+
   <header>
-    <div class="header-row">
-      <div class="header-title">
+    <div class="app-bar">
+      <div class="brand">
         <img src="icons/routine-icon-180.png" alt="" class="app-icon">
-        <h1>Otis, Loui & Teddys Att Göra!</h1>
+        <h1>Rutiner</h1>
       </div>
-  
-      <div id="routine-toggle">
+      <div class="routine-toggle" id="routine-toggle">
         <button id="morningBtn">Morgon</button>
         <button id="eveningBtn">Kväll</button>
         <button id="weekendBtn">Helg</button>
@@ -318,7 +355,6 @@
     <button id="manualResetBtn">Återställ</button>
   </div>
 
-  <!-- ===== Task menu modal (added) ===== -->
   <div id="taskMenuOverlay" class="overlay hidden">
     <div class="modal">
       <div class="modal-title">Välj</div>
@@ -330,51 +366,560 @@
     </div>
   </div>
 
-<!-- ===== Parent add-task modal (hidden) ===== -->
-<div id="parentOverlay" class="overlay hidden">
-  <div class="modal">
-    <div class="modal-title">Förälder: Lägg till uppgift</div>
-
-    <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:12px;">
-      <label style="font-size:14px; opacity:0.9;">
-        Barn:
-        <select id="parentChildSelect" style="width:100%; padding:10px; border-radius:10px; border:1px solid #ddd;">
-        </select>
-      </label>
-
-      <label style="font-size:14px; opacity:0.9;">
-        Rutin:
-        <select id="parentRoutineSelect" style="width:100%; padding:10px; border-radius:10px; border:1px solid #ddd;">
-          <option value="morgon">Morgon</option>
-          <option value="kväll">Kväll</option>
-          <option value="helg">Helg</option>
-        </select>
-      </label>
-
-      <label style="font-size:14px; opacity:0.9;">
-        Uppgift:
-        <input id="parentTaskInput" type="text" placeholder="Ny uppgift…" 
-               style="width:100%; padding:10px; border-radius:10px; border:1px solid #ddd; font-size:16px;">
-      </label>
-    </div>
-
-    <div class="modal-actions">
-      <button id="parentAddBtn" class="modal-btn">Spara</button>
-      <button id="parentCloseBtn" class="modal-btn secondary">Stäng</button>
+  <div id="parentOverlay" class="overlay hidden">
+    <div class="modal">
+      <div class="modal-title">Förälder: Lägg till uppgift</div>
+      <div style="display:flex; flex-direction:column; gap:12px; margin-bottom:14px;">
+        <label>Barn:
+          <select id="parentChildSelect"></select>
+        </label>
+        <label>Rutin:
+          <select id="parentRoutineSelect">
+            <option value="morgon">Morgon</option>
+            <option value="kväll">Kväll</option>
+            <option value="helg">Helg</option>
+          </select>
+        </label>
+        <label>Uppgift:
+          <input id="parentTaskInput" type="text" placeholder="Ny uppgift…">
+        </label>
+      </div>
+      <div class="modal-actions">
+        <button id="parentAddBtn" class="modal-btn">Spara</button>
+        <button id="parentCloseBtn" class="modal-btn secondary">Stäng</button>
+      </div>
     </div>
   </div>
-</div>
-<!-- ======================================== -->
-  
-  <!-- ================================ -->
 
-  <!-- SortableJS -->
-  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+  <!-- Supabase (loaded but dormant until CLOUD_SYNC is turned on) -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
   <script>
     const STORAGE_KEY = 'routineData_v2';
     const defaultChildren = ['Teddy', 'Otis', 'Loui'];
     let data;
+
+    // ===== Supabase sync (shared Familje-Mello project) =====
+    // Cloud sync is OFF for now — flip CLOUD_SYNC to true (and deploy) to enable
+    // cross-device sync + stars history. Everything works locally regardless.
+    const CLOUD_SYNC = false;
+    const SUPABASE_URL = 'https://bhurxoknmyfqymtiaycx.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJodXJ4b2tubXlmcXltdGlheWN4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE5NzI5NTAsImV4cCI6MjA5NzU0ODk1MH0.YbblDF0jfZNzdIMy8rMF3t19b7b6onD91VVLi9N8kYg';
+    const HOUSEHOLD_ID = 'c16b0799-e72b-4318-99e1-12661b9f6e02';
+
+    const CLIENT_ID = 'c_' + Math.random().toString(36).slice(2, 10);
+    let sb = null;
+    let applyingRemote = false;
+    let pushTimer = null;
+
+    function syncEnabled() {
+      return CLOUD_SYNC && !!sb && HOUSEHOLD_ID && HOUSEHOLD_ID.indexOf('__') !== 0;
+    }
+
+    function initSupabase() {
+      try {
+        if (!CLOUD_SYNC) return;
+        if (!HOUSEHOLD_ID || HOUSEHOLD_ID.indexOf('__') === 0) return;
+        if (window.supabase && window.supabase.createClient) {
+          sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        }
+      } catch (e) { console.warn('Supabase init failed', e); }
+    }
+
+    function normalizeData() {
+      if (!data || !Array.isArray(data.children)) return;
+      if (!data.routine) data.routine = 'morgon';
+      data.children.forEach((ch, idx) => {
+        if (!ch.world) ch.world = ['city', 'jungle', 'space'][idx % 3];
+        if (!ch.tasks) ch.tasks = { morgon: [], kväll: [], helg: [] };
+        ['morgon', 'kväll', 'helg'].forEach(r => {
+          if (!ch.tasks[r]) ch.tasks[r] = [];
+          ch.tasks[r].forEach(t => { if (!t.id) t.id = makeId(); });
+        });
+      });
+    }
+
+    function schedulePush() {
+      if (!syncEnabled() || applyingRemote) return;
+      clearTimeout(pushTimer);
+      pushTimer = setTimeout(pushState, 400);
+    }
+    async function pushState() {
+      if (!syncEnabled()) return;
+      try {
+        const payload = Object.assign({}, data, { _src: CLIENT_ID });
+        await sb.from('households').update({ state: payload, updated_at: new Date().toISOString() }).eq('id', HOUSEHOLD_ID);
+      } catch (e) { console.warn('Push failed', e); }
+    }
+    async function pullState() {
+      if (!syncEnabled()) return;
+      try {
+        const { data: row, error } = await sb.from('households').select('state').eq('id', HOUSEHOLD_ID).single();
+        if (error) throw error;
+        const remote = row && row.state;
+        if (remote && Array.isArray(remote.children) && remote.children.length) {
+          if (remote._src !== CLIENT_ID) adoptRemote(remote);
+        } else { pushState(); }
+      } catch (e) { console.warn('Pull failed', e); }
+    }
+    function adoptRemote(remote) {
+      applyingRemote = true;
+      data = remote;
+      normalizeData();
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      applyingRemote = false;
+      applyThemeForRoutine();
+      setRoutineButtons();
+      render();
+    }
+    function subscribeRealtime() {
+      if (!syncEnabled()) return;
+      sb.channel('household-' + HOUSEHOLD_ID)
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'households', filter: 'id=eq.' + HOUSEHOLD_ID },
+          (payload) => {
+            const remote = payload.new && payload.new.state;
+            if (!remote || remote._src === CLIENT_ID) return;
+            adoptRemote(remote);
+          })
+        .subscribe();
+    }
+
+    function todayStockholm() {
+      return new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Stockholm' });
+    }
+    // ===== end Supabase sync =====
+
+    // ===== Task menu (edit / delete) =====
+    let taskMenuState = null;
+    function openTaskMenu(childIndex, taskId) {
+      taskMenuState = { childIndex, taskId };
+      document.getElementById('taskMenuOverlay').classList.remove('hidden');
+    }
+    function closeTaskMenu() {
+      taskMenuState = null;
+      document.getElementById('taskMenuOverlay').classList.add('hidden');
+    }
+    const overlayEl = document.getElementById('taskMenuOverlay');
+    document.getElementById('taskMenuCancelBtn').addEventListener('click', closeTaskMenu);
+    overlayEl.addEventListener('click', (e) => { if (e.target === overlayEl) closeTaskMenu(); });
+
+    document.getElementById('taskMenuDeleteBtn').addEventListener('click', () => {
+      if (!taskMenuState) return;
+      if (!window.confirm('Ta bort?')) return;
+      const { childIndex, taskId } = taskMenuState;
+      const arr = data.children[childIndex].tasks[data.routine];
+      const idx = arr.findIndex(t => t.id === taskId);
+      if (idx >= 0) arr.splice(idx, 1);
+      saveData();
+      closeTaskMenu();
+      render();
+    });
+
+    document.getElementById('taskMenuEditBtn').addEventListener('click', () => {
+      if (!taskMenuState) return;
+      const { childIndex, taskId } = taskMenuState;
+      const arr = data.children[childIndex].tasks[data.routine];
+      const task = arr.find(t => t.id === taskId);
+      if (!task) { closeTaskMenu(); return; }
+      const newText = window.prompt('Redigera uppgift:', task.text);
+      if (newText === null) return;
+      const trimmed = newText.trim();
+      if (!trimmed) return;
+      task.text = trimmed;
+      saveData();
+      closeTaskMenu();
+      render();
+    });
+
+    // ===== Hidden parent mode: tap app icon 7 times =====
+    let secretTaps = 0;
+    let secretTimer = null;
+
+    function openParentModal() {
+      const overlay = document.getElementById('parentOverlay');
+      const childSelect = document.getElementById('parentChildSelect');
+      const routineSelect = document.getElementById('parentRoutineSelect');
+      const input = document.getElementById('parentTaskInput');
+      childSelect.innerHTML = '';
+      data.children.forEach((ch, idx) => {
+        const opt = document.createElement('option');
+        opt.value = String(idx);
+        opt.textContent = ch.name;
+        childSelect.appendChild(opt);
+      });
+      routineSelect.value = data.routine;
+      input.value = '';
+      overlay.classList.remove('hidden');
+      setTimeout(() => input.focus(), 50);
+    }
+    function closeParentModal() {
+      document.getElementById('parentOverlay').classList.add('hidden');
+    }
+    const parentOverlayEl = document.getElementById('parentOverlay');
+    parentOverlayEl.addEventListener('click', (e) => { if (e.target === parentOverlayEl) closeParentModal(); });
+    document.getElementById('parentCloseBtn').addEventListener('click', closeParentModal);
+
+    document.getElementById('parentAddBtn').addEventListener('click', () => {
+      const childIndex = parseInt(document.getElementById('parentChildSelect').value, 10);
+      const routine = document.getElementById('parentRoutineSelect').value;
+      const text = document.getElementById('parentTaskInput').value.trim();
+      if (!text) return;
+      data.children[childIndex].tasks[routine].push({ id: makeId(), text, completed: false });
+      saveData();
+      render();
+      closeParentModal();
+    });
+
+    const iconEl = document.querySelector('.app-icon');
+    if (iconEl) {
+      iconEl.addEventListener('click', () => {
+        secretTaps += 1;
+        if (!secretTimer) {
+          secretTimer = setTimeout(() => { secretTaps = 0; secretTimer = null; }, 3000);
+        }
+        if (secretTaps >= 7) {
+          clearTimeout(secretTimer);
+          secretTaps = 0; secretTimer = null;
+          openParentModal();
+        }
+      });
+    }
+
+    // ===== Themes (muted per routine) =====
+    const THEMES = {
+      morgon: { '--paper': '#F4F0E8', '--accent': '#7C8A6B', '--accent-hover': '#6C7A5C' },
+      kväll:  { '--paper': '#ECEAF1', '--accent': '#6E6690', '--accent-hover': '#5C5580' },
+      helg:   { '--paper': '#F5EFE4', '--accent': '#5E8A82', '--accent-hover': '#4E7A72' }
+    };
+    function applyThemeForRoutine() {
+      const theme = THEMES[data.routine] || THEMES.morgon;
+      const root = document.documentElement;
+      Object.entries(theme).forEach(([k, v]) => root.style.setProperty(k, v));
+    }
+
+    function makeId() {
+      return 't_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
+    }
+
+    function initData() {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        data = JSON.parse(stored);
+        normalizeData();
+        saveData();
+        return;
+      }
+      data = {
+        routine: 'morgon',
+        lastReset: null,
+        children: defaultChildren.map((name, idx) => ({ name, world: ['city', 'jungle', 'space'][idx % 3], tasks: { morgon: [], kväll: [], helg: [] } }))
+      };
+      data.children.forEach(child => {
+        const preset = STARTER_TASKS[child.name];
+        if (!preset) return;
+        ['morgon', 'kväll', 'helg'].forEach(r => {
+          (preset[r] || []).forEach(text => {
+            child.tasks[r].push({ id: makeId(), text, completed: false });
+          });
+        });
+      });
+      saveData();
+    }
+
+    function saveData() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      schedulePush();
+    }
+
+    // Clear yesterday's checks on the first open of a new day.
+    function checkDailyReset() {
+      const today = todayStockholm();
+      if (!data.lastReset) { data.lastReset = today; saveData(); return; }
+      if (data.lastReset !== today) {
+        data.children.forEach(ch => {
+          ['morgon', 'kväll', 'helg'].forEach(r => (ch.tasks[r] || []).forEach(t => t.completed = false));
+        });
+        data.lastReset = today;
+        saveData();
+      }
+    }
+
+    function doneCount(child) {
+      return child.tasks[data.routine].filter(t => t.completed).length;
+    }
+
+    // ===== Pet (evolving creature, daily-fresh per child) =====
+    const PET_MAX = 5;
+    const PET_SLOTS = {
+      head: ['horn', 'crown', 'headphones'],
+      face: ['glasses', 'gem'],
+      neck: ['mane'],
+      back: ['wings', 'cape', 'sword', 'staff', 'jetpack', 'drone'],
+      hand: ['claws', 'tnt'],
+      feet: ['bigboots'],
+      tail: ['firetail'],
+      aura: ['bolt']
+    };
+    const PET_ALL = Object.keys(PET_SLOTS).reduce((a, k) => a.concat(PET_SLOTS[k]), []);
+    const petStage = {};
+
+    function petHash(str) { let h = 1779033703 ^ str.length; for (let i = 0; i < str.length; i++) { h = Math.imul(h ^ str.charCodeAt(i), 3432918353); h = h << 13 | h >>> 19; } return h >>> 0; }
+    function petRng(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+    function petShuffle(a, rnd) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); const t = a[i]; a[i] = a[j]; a[j] = t; } return a; }
+    function petOrder(childName) {
+      const rnd = petRng(petHash(childName + '|' + todayStockholm()));
+      const slots = petShuffle(Object.keys(PET_SLOTS), rnd).slice(0, PET_MAX);
+      return slots.map(s => { const o = PET_SLOTS[s]; return o[Math.floor(rnd() * o.length)]; });
+    }
+    function petFormFor(stage) { return stage === 0 ? 'cub' : stage <= 2 ? 'child' : 'adult'; }
+    function replay(el) { if (!el) return; el.classList.remove('go'); void el.offsetWidth; el.classList.add('go'); }
+
+    function refreshPet(i, animate) {
+      const svg = document.querySelector('#card-' + i + ' .pet-svg');
+      if (!svg) return;
+      const child = data.children[i];
+      const total = child.tasks[data.routine].length;
+      const done = doneCount(child);
+      const stage = total ? Math.round(done / total * PET_MAX) : 0;
+      const form = petFormFor(stage);
+
+      ['cub', 'child', 'adult'].forEach(f => {
+        const b = svg.querySelector('.body-' + f);
+        if (b) b.classList.toggle('active', f === form);
+      });
+      const grow = svg.querySelector('.grow');
+      if (grow) grow.style.transform = 'scale(' + (0.6 + 0.08 * stage).toFixed(3) + ')';
+
+      const order = petOrder(child.name);
+      PET_ALL.forEach(id => { const el = svg.querySelector('.tr-' + id); if (el) el.classList.remove('on'); });
+      for (let k = 0; k < stage; k++) { const el = svg.querySelector('.tr-' + order[k]); if (el) el.classList.add('on'); }
+      svg.classList.toggle('party', total > 0 && stage >= PET_MAX);
+
+      const prev = petStage[i] == null ? stage : petStage[i];
+      if (animate && stage > prev) {
+        replay(svg.querySelector('.hop'));
+        replay(svg.querySelector('.burst'));
+        if (petFormFor(prev) !== form) replay(svg.querySelector('.shake'));
+      }
+      petStage[i] = stage;
+    }
+
+    function petMarkup() {
+      return `<svg class="pet-svg" viewBox="188 24 304 292" preserveAspectRatio="xMidYMax meet" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <ellipse cx="340" cy="300" rx="120" ry="16" fill="#4A4636" opacity="0.10"/>
+        <g class="float"><g class="grow"><g class="shake"><g class="hop"><g transform="translate(340,296)">
+          <circle class="burst" cx="0" cy="-120" r="120" fill="url(#petFlash)"/>
+          <g class="traits-back">
+            <g class="trait tr-cape"><path d="M-36 -150 C-70 -110 -66 -40 -52 -6 L0 -20 L52 -6 C66 -40 70 -110 36 -150 Z" fill="#9E4A46"/><path d="M0 -150 L0 -20" stroke="#7C3A37" stroke-width="2"/></g>
+            <g class="trait tr-wings"><path d="M-46 -120 q-62 -40 -86 2 q44 -8 84 26 Z" fill="#D8C7A8"/><path d="M-46 -120 q-62 -40 -86 2" fill="none" stroke="#B9A47E" stroke-width="1.5"/><path d="M46 -120 q62 -40 86 2 q-44 -8 -84 26 Z" fill="#D8C7A8"/><path d="M46 -120 q62 -40 86 2" fill="none" stroke="#B9A47E" stroke-width="1.5"/></g>
+            <g class="trait tr-sword"><rect x="34" y="-200" width="9" height="150" rx="4" fill="#C7CDD4" transform="rotate(24 38 -125)"/><rect x="36" y="-200" width="3" height="150" fill="#EAEEF2" transform="rotate(24 38 -125)"/><rect x="20" y="-70" width="34" height="8" rx="3" fill="#C99A3C" transform="rotate(24 38 -70)"/></g>
+            <g class="trait tr-staff"><rect x="-40" y="-206" width="8" height="176" rx="4" fill="#8A6A46" transform="rotate(-20 -36 -118)"/><circle cx="-58" cy="-198" r="12" fill="#7FB8C6"/><circle cx="-61" cy="-201" r="4" fill="#D6F0F5"/></g>
+            <g class="jetpack trait tr-jetpack"><rect x="-30" y="-96" width="18" height="52" rx="7" fill="#9AA0A6"/><rect x="12" y="-96" width="18" height="52" rx="7" fill="#9AA0A6"/><path class="flame" d="M-27 -44 q6 26 6 30 q0 -4 6 -30 Z" fill="url(#petFire)"/><path class="flame" d="M15 -44 q6 26 6 30 q0 -4 6 -30 Z" fill="url(#petFire)"/></g>
+            <g class="drone trait tr-drone"><rect x="-16" y="-262" width="32" height="12" rx="4" fill="#3A3A3D"/><circle cx="0" cy="-256" r="3" fill="#8FD16A"/><g class="rotor"><rect x="-40" y="-266" width="30" height="4" rx="2" fill="#5A5A5E"/></g><g class="rotor"><rect x="10" y="-266" width="30" height="4" rx="2" fill="#5A5A5E"/></g></g>
+          </g>
+
+          <g class="bodyform body-cub"><g class="breathe">
+            <circle cx="-15" cy="-58" r="8" fill="#C7AC88"/><circle cx="15" cy="-58" r="8" fill="#C7AC88"/>
+            <circle cx="-15" cy="-58" r="3.5" fill="#E0A98F"/><circle cx="15" cy="-58" r="3.5" fill="#E0A98F"/>
+            <ellipse cx="-10" cy="-6" rx="8" ry="5" fill="#B99A72"/><ellipse cx="10" cy="-6" rx="8" ry="5" fill="#B99A72"/>
+            <circle cx="0" cy="-34" r="30" fill="#C7AC88"/>
+            <ellipse cx="0" cy="-28" rx="16" ry="18" fill="#EEDFC6"/>
+            <circle cx="-14" cy="-30" r="9" fill="#E0A187" opacity="0.6"/><circle cx="14" cy="-30" r="9" fill="#E0A187" opacity="0.6"/>
+            <circle cx="-11" cy="-38" r="6.5" fill="#3D3931"/><circle cx="-8.5" cy="-40.5" r="2.4" fill="#FBF7EE"/>
+            <circle cx="11" cy="-38" r="6.5" fill="#3D3931"/><circle cx="13.5" cy="-40.5" r="2.4" fill="#FBF7EE"/>
+            <ellipse cx="0" cy="-26" rx="3.5" ry="2.5" fill="#6F5A48"/>
+          </g></g>
+
+          <g class="bodyform body-child"><g class="breathe">
+            <g class="tail"><path d="M50 -60 q46 -8 52 34 q-8 -26 -34 -26 q-16 0 -18 -8 Z" fill="#BE9F79"/></g>
+            <ellipse cx="-56" cy="-58" rx="12" ry="20" fill="#BE9F79"/><ellipse cx="56" cy="-58" rx="12" ry="20" fill="#BE9F79"/>
+            <ellipse cx="-24" cy="-8" rx="14" ry="9" fill="#B99A72"/><ellipse cx="24" cy="-8" rx="14" ry="9" fill="#B99A72"/>
+            <path d="M0 -14 C-58 -14 -66 -60 -66 -88 C-66 -134 -38 -162 0 -162 C38 -162 66 -134 66 -88 C66 -60 58 -14 0 -14 Z" fill="#C7AC88"/>
+            <ellipse cx="0" cy="-74" rx="40" ry="46" fill="#EEDFC6"/>
+            <path d="M-40 -150 q-18 -26 -4 -46 q18 8 22 40 Z" fill="#C7AC88"/><path d="M40 -150 q18 -26 4 -46 q-18 8 -22 40 Z" fill="#C7AC88"/>
+            <path d="M-37 -154 q-10 -18 -3 -30 q10 6 12 24 Z" fill="#E0A98F"/><path d="M37 -154 q10 -18 3 -30 q-10 6 -12 24 Z" fill="#E0A98F"/>
+            <circle cx="-26" cy="-96" r="11" fill="#E0A187" opacity="0.7"/><circle cx="26" cy="-96" r="11" fill="#E0A187" opacity="0.7"/>
+            <circle cx="-18" cy="-110" r="7.5" fill="#3D3931"/><circle cx="-15.5" cy="-112.5" r="2.4" fill="#FBF7EE"/>
+            <circle cx="18" cy="-110" r="7.5" fill="#3D3931"/><circle cx="20.5" cy="-112.5" r="2.4" fill="#FBF7EE"/>
+            <path class="eyelid" d="M-26 -110 a8 8 0 0 1 16 0 Z" fill="#C7AC88"/><path class="eyelid" d="M10 -110 a8 8 0 0 1 16 0 Z" fill="#C7AC88"/>
+            <ellipse cx="0" cy="-92" rx="4.5" ry="3.2" fill="#6F5A48"/>
+            <path d="M-9 -84 q9 8 18 0" stroke="#6F5A48" stroke-width="2" fill="none" stroke-linecap="round"/>
+          </g></g>
+
+          <g class="bodyform body-adult"><g class="breathe">
+            <g class="tail"><path d="M46 -66 q58 -6 66 44 q-10 -32 -44 -32 q-18 0 -22 -12 Z" fill="#BE9F79"/></g>
+            <ellipse cx="-50" cy="-84" rx="13" ry="34" fill="#BE9F79"/><ellipse cx="50" cy="-84" rx="13" ry="34" fill="#BE9F79"/>
+            <ellipse cx="-22" cy="-8" rx="15" ry="10" fill="#B99A72"/><ellipse cx="22" cy="-8" rx="15" ry="10" fill="#B99A72"/>
+            <ellipse cx="0" cy="-74" rx="48" ry="66" fill="#C7AC88"/>
+            <ellipse cx="0" cy="-70" rx="30" ry="48" fill="#EEDFC6"/>
+            <circle cx="0" cy="-158" r="42" fill="#C7AC88"/>
+            <path d="M-30 -186 q-16 -34 -2 -54 q20 10 26 46 Z" fill="#C7AC88"/><path d="M30 -186 q16 -34 2 -54 q-20 10 -26 46 Z" fill="#C7AC88"/>
+            <path d="M-27 -190 q-9 -22 -1 -36 q11 8 13 30 Z" fill="#E0A98F"/><path d="M27 -190 q9 -22 1 -36 q-11 8 -13 30 Z" fill="#E0A98F"/>
+            <ellipse cx="0" cy="-138" rx="16" ry="12" fill="#EEDFC6"/>
+            <circle cx="-22" cy="-166" r="10" fill="#E0A187" opacity="0.6"/><circle cx="22" cy="-166" r="10" fill="#E0A187" opacity="0.6"/>
+            <circle cx="-15" cy="-168" r="6.5" fill="#3D3931"/><circle cx="-12.5" cy="-170.5" r="2.2" fill="#FBF7EE"/>
+            <circle cx="15" cy="-168" r="6.5" fill="#3D3931"/><circle cx="17.5" cy="-170.5" r="2.2" fill="#FBF7EE"/>
+            <path class="eyelid" d="M-22 -168 a7 7 0 0 1 14 0 Z" fill="#C7AC88"/><path class="eyelid" d="M8 -168 a7 7 0 0 1 14 0 Z" fill="#C7AC88"/>
+            <ellipse cx="0" cy="-150" rx="4" ry="3" fill="#6F5A48"/>
+            <path d="M-8 -142 q8 7 16 0" stroke="#6F5A48" stroke-width="2" fill="none" stroke-linecap="round"/>
+          </g></g>
+
+          <g class="traits-front">
+            <g class="trait tr-mane"><path d="M-46 -116 q-14 22 6 40 q-22 -2 -28 -20 q-4 -16 22 -20 Z" fill="#A87E4E"/><path d="M46 -116 q14 22 -6 40 q22 -2 28 -20 q4 -16 -22 -20 Z" fill="#A87E4E"/><path d="M-40 -104 q40 22 80 0 q-14 26 -40 26 q-26 0 -40 -26 Z" fill="#A87E4E"/></g>
+            <g class="trait tr-claws"><path d="M-56 -50 l-4 12 l7 -4 Z" fill="#EFE7D5"/><path d="M-49 -48 l-3 13 l7 -4 Z" fill="#EFE7D5"/><path d="M-42 -50 l-2 12 l7 -4 Z" fill="#EFE7D5"/><path d="M56 -50 l4 12 l-7 -4 Z" fill="#EFE7D5"/><path d="M49 -48 l3 13 l-7 -4 Z" fill="#EFE7D5"/><path d="M42 -50 l2 12 l-7 -4 Z" fill="#EFE7D5"/></g>
+            <g class="trait tr-tnt"><g transform="rotate(-12 52 -66)"><rect x="44" y="-78" width="9" height="26" rx="2" fill="#C4402F"/><rect x="53" y="-78" width="9" height="26" rx="2" fill="#C4402F"/><rect x="42" y="-70" width="22" height="7" fill="#E8C98A"/><path d="M53 -78 q6 -10 12 -6" fill="none" stroke="#5A4A38" stroke-width="2"/><circle cx="66" cy="-84" r="2.5" fill="#F0A93C"/></g></g>
+            <g class="firetail trait tr-firetail"><path class="flame" d="M56 -46 q30 -6 42 24 q6 -32 -8 -50 q-2 22 -22 18 q-8 2 -12 8 Z" fill="url(#petFire)"/><path class="flame" d="M72 -42 q14 -2 20 14 q6 -18 -2 -30 q-4 14 -18 16 Z" fill="#F3C86A"/></g>
+            <g class="trait tr-bigboots"><path d="M-34 -6 q-2 -22 12 -22 q14 0 14 16 l0 6 q10 2 10 8 l-36 0 Z" fill="#6E4E33"/><rect x="-36" y="-4" width="38" height="8" rx="3" fill="#3A2C1E"/><path d="M34 -6 q2 -22 -12 -22 q-14 0 -14 16 l0 6 q-10 2 -10 8 l36 0 Z" fill="#6E4E33"/><rect x="-2" y="-4" width="38" height="8" rx="3" fill="#3A2C1E"/></g>
+            <g class="trait tr-glasses"><circle cx="-15" cy="-168" r="11" fill="#BEDCE8" opacity="0.65" stroke="#33322E" stroke-width="2.5"/><circle cx="15" cy="-168" r="11" fill="#BEDCE8" opacity="0.65" stroke="#33322E" stroke-width="2.5"/><path d="M-4 -168 h8" stroke="#33322E" stroke-width="2.5"/></g>
+            <g class="trait tr-headphones"><path d="M-44 -158 a44 44 0 0 1 88 0" fill="none" stroke="#2E2C29" stroke-width="6"/><rect x="-52" y="-166" width="16" height="26" rx="6" fill="#2E2C29"/><rect x="36" y="-166" width="16" height="26" rx="6" fill="#2E2C29"/><rect x="-49" y="-160" width="4" height="14" fill="#E0684E"/></g>
+            <g class="trait tr-gem"><path d="M0 -196 l8 9 l-8 10 l-8 -10 Z" fill="#5FB6C9"/><path d="M0 -196 l8 9 l-8 3 Z" fill="#9FE0EC"/></g>
+            <g class="trait tr-horn"><path d="M-16 -192 q-18 -20 -6 -46 q12 6 14 26 q1 14 -8 20 Z" fill="#E6D8BB"/><path d="M16 -192 q18 -20 6 -46 q-12 6 -14 26 q-1 14 8 20 Z" fill="#E6D8BB"/></g>
+            <g class="trait tr-crown"><path d="M-24 -196 l0 -22 l11 11 l13 -18 l13 18 l11 -11 l0 22 Z" fill="#E9C24E"/><circle cx="0" cy="-220" r="3.5" fill="#C0432E"/><circle cx="-24" cy="-216" r="3" fill="#5FB6C9"/><circle cx="24" cy="-216" r="3" fill="#5FB6C9"/></g>
+            <g class="bolt trait tr-bolt"><path class="zap" d="M-98 -150 l16 -6 l-7 15 l15 -4 l-20 22 l7 -17 l-13 4 Z" fill="#F0C64B"/><path class="zap" d="M98 -138 l-16 -6 l7 15 l-15 -4 l20 22 l-7 -17 l13 4 Z" fill="#F0C64B"/></g>
+          </g>
+        </g></g></g></g></g>
+        <g fill="#E9C879"><path class="pet-spark a" d="M238 74 l3.5 9 l9 3.5 l-9 3.5 l-3.5 9 l-3.5 -9 l-9 -3.5 l9 -3.5 Z"/><path class="pet-spark b" d="M442 66 l3 8 l8 3 l-8 3 l-3 8 l-3 -8 l-8 -3 l8 -3 Z"/><path class="pet-spark c" d="M410 150 l2.5 7 l7 2.5 l-7 2.5 l-2.5 7 l-2.5 -7 l-7 -2.5 l7 -2.5 Z"/></g>
+      </svg>`;
+    }
+    // ===== Worlds (swappable backdrop per child) =====
+    const WORLDS = ['city', 'jungle', 'space'];
+    function worldMarkup(world) {
+      if (world === 'jungle') return `<svg viewBox="0 0 300 168" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg"><rect width="300" height="168" fill="url(#wJungle)"/><ellipse cx="120" cy="70" rx="130" ry="30" fill="#FFFFFF" opacity="0.18"/><g fill="#9CB182"><ellipse cx="40" cy="150" rx="80" ry="46"/><ellipse cx="250" cy="146" rx="86" ry="50"/></g><g fill="#6E8B5D"><ellipse cx="120" cy="168" rx="96" ry="46"/><ellipse cx="280" cy="164" rx="70" ry="40"/></g><g fill="#4E6A43"><ellipse cx="150" cy="182" rx="132" ry="40"/><ellipse cx="20" cy="176" rx="60" ry="34"/></g><path d="M26 0 q14 34 3 62 q-12 -8 -9 -30 q-3 18 3 34" fill="#6E8B5D" opacity="0.85"/></svg>`;
+      if (world === 'space') return `<svg viewBox="0 0 300 168" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg"><rect width="300" height="168" fill="url(#wSpace)"/><g fill="#EFE9D4"><circle cx="30" cy="26" r="1.4"/><circle cx="70" cy="16" r="1"/><circle cx="120" cy="30" r="1.5"/><circle cx="180" cy="20" r="1.1"/><circle cx="230" cy="34" r="1.2"/><circle cx="270" cy="22" r="1"/><circle cx="20" cy="70" r="1"/><circle cx="285" cy="76" r="1.3"/><circle cx="150" cy="14" r="1"/><circle cx="255" cy="60" r="0.9"/><circle cx="45" cy="110" r="1"/></g><g transform="translate(244,40) rotate(-18)"><circle cx="0" cy="0" r="15" fill="#C89A76"/><ellipse cx="0" cy="0" rx="27" ry="8" fill="none" stroke="#E0CBAE" stroke-width="2.5"/></g></svg>`;
+      return `<svg viewBox="0 0 300 168" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg"><rect width="300" height="168" fill="url(#wCity)"/><circle cx="248" cy="34" r="13" fill="#F1E8D3" opacity="0.9"/><g fill="#787C97"><rect x="6" y="86" width="26" height="82"/><rect x="40" y="76" width="20" height="92"/><rect x="240" y="80" width="26" height="88"/><rect x="272" y="92" width="22" height="76"/></g><g fill="#565A79"><rect x="28" y="102" width="28" height="66"/><rect x="66" y="92" width="26" height="76"/><rect x="196" y="96" width="28" height="72"/><rect x="252" y="104" width="24" height="64"/></g><g fill="#3F4260"><rect x="96" y="112" width="34" height="56"/><rect x="140" y="118" width="40" height="50"/><rect x="184" y="114" width="32" height="54"/></g><g fill="#EBBB7A"><rect x="104" y="120" width="5" height="6"/><rect x="116" y="120" width="5" height="6"/><rect x="150" y="126" width="5" height="6"/><rect x="164" y="126" width="5" height="6"/><rect x="192" y="122" width="5" height="6"/></g></svg>`;
+    }
+    function cycleWorld(i) {
+      const cur = data.children[i].world || 'city';
+      const next = WORLDS[(WORLDS.indexOf(cur) + 1) % WORLDS.length];
+      data.children[i].world = next;
+      saveData();
+      const bg = document.querySelector('#card-' + i + ' .world-bg');
+      if (bg) bg.innerHTML = worldMarkup(next);
+    }
+    // ===== end Pet =====
+
+    function updateCardMeta(i) {
+      const child = data.children[i];
+      const total = child.tasks[data.routine].length;
+      const done = doneCount(child);
+      const c = document.getElementById('count-' + i);
+      if (c) c.textContent = done + (total ? ' / ' + total : '');
+      const f = document.getElementById('fill-' + i);
+      if (f) f.style.width = (total ? Math.round(done / total * 100) : 0) + '%';
+      const card = document.getElementById('card-' + i);
+      if (card) card.classList.toggle('complete', total > 0 && done === total);
+    }
+
+    function render() {
+      const container = document.getElementById('children-container');
+      container.innerHTML = '';
+
+      data.children.forEach((child, childIndex) => {
+        const total = child.tasks[data.routine].length;
+        const done = doneCount(child);
+
+        const card = document.createElement('div');
+        card.className = 'child-card' + (total > 0 && done === total ? ' complete' : '');
+        card.id = 'card-' + childIndex;
+
+        const petScene = document.createElement('div');
+        petScene.className = 'pet-scene';
+        petScene.innerHTML = '<div class="world-bg">' + worldMarkup(child.world) + '</div>' + petMarkup() +
+          '<button class="world-swap" type="button" aria-label="Byt bakgrund"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 19l6-8 4 5 3-4 5 7z"/><circle cx="7.5" cy="7" r="2.5"/></svg></button>';
+        petScene.querySelector('.world-swap').addEventListener('click', (e) => { e.stopPropagation(); cycleWorld(childIndex); });
+        card.appendChild(petScene);
+
+        const header = document.createElement('div');
+        header.className = 'child-header';
+        const nameElem = document.createElement('h3');
+        nameElem.textContent = child.name;
+        const starElem = document.createElement('div');
+        starElem.className = 'stars';
+        starElem.innerHTML = `<span id="count-${childIndex}">${done}${total ? ' / ' + total : ''}</span> ⭐`;
+        header.appendChild(nameElem);
+        header.appendChild(starElem);
+        card.appendChild(header);
+
+        const bar = document.createElement('div');
+        bar.className = 'progress-bar';
+        const fill = document.createElement('div');
+        fill.className = 'progress-fill';
+        fill.id = 'fill-' + childIndex;
+        fill.style.width = (total ? Math.round(done / total * 100) : 0) + '%';
+        bar.appendChild(fill);
+        card.appendChild(bar);
+
+        const list = document.createElement('div');
+        list.className = 'task-list';
+
+        child.tasks[data.routine].forEach(task => {
+          const row = document.createElement('div');
+          row.className = 'task' + (task.completed ? ' done' : '');
+          row.dataset.taskId = task.id;
+
+          const check = document.createElement('div');
+          check.className = 'task-check';
+          check.innerHTML = '<svg class="tick" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#FBFAF6" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>';
+
+          const text = document.createElement('div');
+          text.className = 'task-text';
+          text.textContent = task.text;
+
+          const menu = document.createElement('button');
+          menu.className = 'task-menu';
+          menu.type = 'button';
+          menu.textContent = '⋯';
+          menu.setAttribute('aria-label', 'Alternativ');
+          menu.addEventListener('click', (e) => {
+            e.stopPropagation();
+            openTaskMenu(childIndex, task.id);
+          });
+
+          row.appendChild(check);
+          row.appendChild(text);
+          row.appendChild(menu);
+
+          row.addEventListener('click', () => {
+            task.completed = !task.completed;
+            row.classList.toggle('done', task.completed);
+            saveData();
+            updateCardMeta(childIndex);
+            refreshPet(childIndex, true);
+          });
+
+          list.appendChild(row);
+        });
+
+        card.appendChild(list);
+        container.appendChild(card);
+        refreshPet(childIndex, false);
+      });
+    }
+
+    function setRoutineButtons() {
+      const map = { morgon: 'morningBtn', kväll: 'eveningBtn', helg: 'weekendBtn' };
+      ['morningBtn', 'eveningBtn', 'weekendBtn'].forEach(id => document.getElementById(id).classList.remove('active'));
+      const el = document.getElementById(map[data.routine]);
+      if (el) el.classList.add('active');
+    }
+
+    function switchRoutine(routine) {
+      data.routine = routine;
+      saveData();
+      applyThemeForRoutine();
+      setRoutineButtons();
+      render();
+    }
+    document.getElementById('morningBtn').addEventListener('click', () => switchRoutine('morgon'));
+    document.getElementById('eveningBtn').addEventListener('click', () => switchRoutine('kväll'));
+    document.getElementById('weekendBtn').addEventListener('click', () => switchRoutine('helg'));
+
+    document.getElementById('manualResetBtn').addEventListener('click', () => {
+      if (!confirm('Vill du återställa rutinen?')) return;
+      data.children.forEach(child => child.tasks[data.routine].forEach(t => t.completed = false));
+      saveData();
+      render();
+    });
 
     const STARTER_TASKS = {
       Teddy: {
@@ -400,426 +945,17 @@
       }
     };
 
-    // ===== THEMES (added) =====
-    const THEMES = {
-      morgon: {
-        '--bg': '#f3f7f2',
-        '--card': '#ffffff',
-        '--header': '#4e7d4e',
-        '--accent': '#4e7d4e',
-        '--accent-hover': '#3f653f',
-        '--task-bg': '#e6efe6',
-        '--task-done-bg': '#cfe2cf'
-      },
-      kväll: {
-        '--bg': '#f3f1f7',
-        '--card': '#ffffff',
-        '--header': '#6b5ca5',
-        '--accent': '#6b5ca5',
-        '--accent-hover': '#574a86',
-        '--task-bg': '#ebe7f2',
-        '--task-done-bg': '#d8d1ea'
-      },
-      helg: {
-        '--bg': '#fff8f0',          // warm cream
-        '--card': '#ffffff',
-        '--header': '#ff9f1c',      // orange
-        '--accent': '#2ec4b6',      // turquoise
-        '--accent-hover': '#1fa89c',
-        '--task-bg': '#eaf6ff',     // sky blue
-        '--task-done-bg': '#f1ffe7' // light green
-}
-    };
-
-    function applyThemeForRoutine() {
-      const theme = THEMES[data.routine] || THEMES.morgon;
-      const root = document.documentElement;
-      Object.entries(theme).forEach(([k, v]) => root.style.setProperty(k, v));
-    }
-    // ==========================
-
-    // ===== Task menu state + handlers (added) =====
-    let taskMenuState = null;
-
-    function openTaskMenu(childIndex, taskId) {
-      taskMenuState = { childIndex, taskId };
-      document.getElementById('taskMenuOverlay').classList.remove('hidden');
-    }
-
-    function closeTaskMenu() {
-      taskMenuState = null;
-      document.getElementById('taskMenuOverlay').classList.add('hidden');
-    }
-
-    // Wire modal buttons immediately (overlay exists before script runs)
-    const overlayEl = document.getElementById('taskMenuOverlay');
-    document.getElementById('taskMenuCancelBtn').addEventListener('click', closeTaskMenu);
-    overlayEl.addEventListener('click', (e) => {
-      if (e.target === overlayEl) closeTaskMenu(); // tap outside
-    });
-
-    document.getElementById('taskMenuDeleteBtn').addEventListener('click', () => {
-      if (!taskMenuState) return;
-
-      const ok = window.confirm('Ta bort?');
-      if (!ok) return;
-
-      const { childIndex, taskId } = taskMenuState;
-      const arr = data.children[childIndex].tasks[data.routine];
-      const idx = arr.findIndex(t => t.id === taskId);
-      if (idx >= 0) arr.splice(idx, 1);
-
-      saveData();
-      closeTaskMenu();
-      render();
-    });
-
-    document.getElementById('taskMenuEditBtn').addEventListener('click', () => {
-      if (!taskMenuState) return;
-
-      const { childIndex, taskId } = taskMenuState;
-      const arr = data.children[childIndex].tasks[data.routine];
-      const task = arr.find(t => t.id === taskId);
-      if (!task) { closeTaskMenu(); return; }
-
-      const newText = window.prompt('Redigera uppgift:', task.text);
-      if (newText === null) return; // cancelled
-      const trimmed = newText.trim();
-      if (!trimmed) return; // ignore empty
-
-      task.text = trimmed;
-      saveData();
-      closeTaskMenu();
-      render();
-    });
-    // =============================================
-
-
-    // ===== Hidden parent mode: tap app icon 7 times =====
-let secretTaps = 0;
-let secretTimer = null;
-
-function openParentModal() {
-  const overlay = document.getElementById('parentOverlay');
-  const childSelect = document.getElementById('parentChildSelect');
-  const routineSelect = document.getElementById('parentRoutineSelect');
-  const input = document.getElementById('parentTaskInput');
-
-  // Populate children dropdown
-  childSelect.innerHTML = '';
-  data.children.forEach((ch, idx) => {
-    const opt = document.createElement('option');
-    opt.value = String(idx);
-    opt.textContent = ch.name;
-    childSelect.appendChild(opt);
-  });
-
-  // Default routine = current routine
-  routineSelect.value = data.routine;
-
-  input.value = '';
-  overlay.classList.remove('hidden');
-  setTimeout(() => input.focus(), 50);
-}
-
-function closeParentModal() {
-  document.getElementById('parentOverlay').classList.add('hidden');
-}
-
-// close on outside tap
-const parentOverlayEl = document.getElementById('parentOverlay');
-parentOverlayEl.addEventListener('click', (e) => {
-  if (e.target === parentOverlayEl) closeParentModal();
-});
-
-document.getElementById('parentCloseBtn').addEventListener('click', closeParentModal);
-
-document.getElementById('parentAddBtn').addEventListener('click', () => {
-  const childIndex = parseInt(document.getElementById('parentChildSelect').value, 10);
-  const routine = document.getElementById('parentRoutineSelect').value;
-  const text = document.getElementById('parentTaskInput').value.trim();
-
-  if (!text) return;
-
-  data.children[childIndex].tasks[routine].push({
-    id: makeId(),
-    text,
-    completed: false
-  });
-
-  saveData();
-
-  // If you added to the routine you're viewing, re-render immediately
-  render();
-  closeParentModal();
-});
-
-// Secret gesture on the app icon
-const iconEl = document.querySelector('.app-icon');
-if (iconEl) {
-  iconEl.addEventListener('click', () => {
-    secretTaps += 1;
-
-    if (!secretTimer) {
-      secretTimer = setTimeout(() => {
-        secretTaps = 0;
-        secretTimer = null;
-      }, 3000); // 3 seconds window
-    }
-
-    if (secretTaps >= 7) {
-      clearTimeout(secretTimer);
-      secretTaps = 0;
-      secretTimer = null;
-      openParentModal();
-    }
-  });
-}
-// ================================================
-    
-    function makeId() {
-      // stable-enough unique id for local use
-      return 't_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
-    }
-
-    function initData() {
-  const stored = localStorage.getItem(STORAGE_KEY);
-
-  // ---- Existing data: load + migrate ----
-  if (stored) {
-    data = JSON.parse(stored);
-
-    data.children.forEach(ch => {
-      ['morgon', 'kväll', 'helg'].forEach(r => {
-        if (!ch.tasks[r]) ch.tasks[r] = [];
-        ch.tasks[r].forEach(t => {
-          if (!t.id) t.id = makeId();
-        });
-      });
-    });
-
-    saveData();
-    return;
-  }
-
-  // ---- First run: create + seed starter tasks ----
-  data = {
-    routine: 'morgon',
-    children: defaultChildren.map(name => ({
-      name,
-      tasks: { morgon: [], kväll: [], helg: [] }
-    }))
-  };
-
-  // Seed starter tasks
-  data.children.forEach(child => {
-    const preset = STARTER_TASKS[child.name];
-    if (!preset) return;
-
-    ['morgon', 'kväll', 'helg'].forEach(r => {
-      (preset[r] || []).forEach(text => {
-        child.tasks[r].push({
-          id: makeId(),
-          text,
-          completed: false
-        });
-      });
-    });
-  });
-
-  saveData();
-}
-
-    function saveData() {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-    }
-
-    function doneCount(child) {
-      return child.tasks[data.routine].filter(t => t.completed).length;
-    }
-
-    function render() {
-      const container = document.getElementById('children-container');
-      container.innerHTML = '';
-
-      data.children.forEach((child, childIndex) => {
-        const card = document.createElement('div');
-        card.className = 'child-card';
-
-        // header
-        const header = document.createElement('div');
-        header.className = 'child-header';
-
-        const nameElem = document.createElement('h3');
-        nameElem.textContent = child.name;
-
-        const starElem = document.createElement('div');
-        starElem.className = 'stars';
-        starElem.innerHTML = `⭐ <span>${doneCount(child)}</span>`;
-
-        header.appendChild(nameElem);
-        header.appendChild(starElem);
-        card.appendChild(header);
-
-        // columns
-        const listContainer = document.createElement('div');
-        listContainer.className = 'task-list';
-
-        const todoCol = document.createElement('div');
-        todoCol.className = 'task-column todo';
-        todoCol.innerHTML = `<h4>Att göra</h4>`;
-        const todoItems = document.createElement('div');
-        todoItems.className = 'task-items';
-        todoItems.id = `todo-items-${childIndex}`;
-        todoCol.appendChild(todoItems);
-
-        const doneCol = document.createElement('div');
-        doneCol.className = 'task-column done';
-        doneCol.innerHTML = `<h4>Klar</h4>`;
-        const doneItems = document.createElement('div');
-        doneItems.className = 'task-items';
-        doneItems.id = `done-items-${childIndex}`;
-        doneCol.appendChild(doneItems);
-
-        // tasks
-        child.tasks[data.routine].forEach(task => {
-          const taskElem = document.createElement('div');
-          taskElem.className = 'task';
-          taskElem.dataset.taskId = task.id;
-
-          const textSpan = document.createElement('span');
-          textSpan.className = 'task-text';
-          textSpan.textContent = task.text;
-
-          const delBtn = document.createElement('button');
-          delBtn.className = 'task-delete';
-          delBtn.type = 'button';
-          delBtn.textContent = '×';
-
-          // open menu (instead of immediate delete)
-          delBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            openTaskMenu(childIndex, task.id);
-          });
-
-          taskElem.appendChild(textSpan);
-          taskElem.appendChild(delBtn);
-
-          if (task.completed) doneItems.appendChild(taskElem);
-          else todoItems.appendChild(taskElem);
-        });
-
-        listContainer.appendChild(todoCol);
-        listContainer.appendChild(doneCol);
-        card.appendChild(listContainer);
-
-
-
-        container.appendChild(card);
-      });
-
-      attachSortables();
-    }
-
-    function syncChildFromDOM(childIndex) {
-      const todoEl = document.getElementById(`todo-items-${childIndex}`);
-      const doneEl = document.getElementById(`done-items-${childIndex}`);
-      if (!todoEl || !doneEl) return;
-
-      const orderTodo = Array.from(todoEl.querySelectorAll('.task')).map(el => el.dataset.taskId);
-      const orderDone = Array.from(doneEl.querySelectorAll('.task')).map(el => el.dataset.taskId);
-
-      const current = data.children[childIndex].tasks[data.routine];
-      const byId = new Map(current.map(t => [t.id, t]));
-
-      const newArr = [];
-
-      for (const id of orderTodo) {
-        const t = byId.get(id);
-        if (t) { t.completed = false; newArr.push(t); }
-      }
-      for (const id of orderDone) {
-        const t = byId.get(id);
-        if (t) { t.completed = true; newArr.push(t); }
-      }
-
-      data.children[childIndex].tasks[data.routine] = newArr;
-      saveData();
-    }
-
-    function attachSortables() {
-      data.children.forEach((child, childIndex) => {
-        const todoEl = document.getElementById(`todo-items-${childIndex}`);
-        const doneEl = document.getElementById(`done-items-${childIndex}`);
-        if (!todoEl || !doneEl) return;
-
-        const groupName = `child-${childIndex}-${data.routine}`; // keep each child separate
-
-        const common = {
-          group: groupName,
-          animation: 150,
-          forceFallback: true,
-          fallbackOnBody: true,
-
-          // critical: don't start drag from delete button
-          filter: '.task-delete',
-          preventOnFilter: true,
-
-          // keep the page from selecting text / doing weird callouts
-          delayOnTouchOnly: true,
-          delay: 0,
-          touchStartThreshold: 0,
-
-          onEnd: () => {
-            syncChildFromDOM(childIndex);
-            render(); // rerender so stars update and indices are consistent
-          }
-        };
-
-        // Destroy old instances if re-rendered
-        if (todoEl._sortable) todoEl._sortable.destroy();
-        if (doneEl._sortable) doneEl._sortable.destroy();
-
-        todoEl._sortable = Sortable.create(todoEl, common);
-        doneEl._sortable = Sortable.create(doneEl, common);
-      });
-    }
-
-    // Routine toggles
-    document.getElementById('morningBtn').addEventListener('click', () => {
-      data.routine = 'morgon';
-      saveData();
-      applyThemeForRoutine();
-      render();
-    });
-    document.getElementById('eveningBtn').addEventListener('click', () => {
-      data.routine = 'kväll';
-      saveData();
-      applyThemeForRoutine();
-      render();
-    });
-    document.getElementById('weekendBtn').addEventListener('click', () => {
-      data.routine = 'helg';
-      saveData();
-      applyThemeForRoutine();
-      render();
-    });
-
-    // Reset
-    document.getElementById('manualResetBtn').addEventListener('click', () => {
-      if (!confirm('Vill du återställa rutiner och stjärnor?')) return;
-
-      data.children.forEach(child => {
-        child.tasks[data.routine].forEach(t => t.completed = false);
-      });
-
-      saveData();
-      render();
-    });
-
     initData();
+    checkDailyReset();
     applyThemeForRoutine();
+    setRoutineButtons();
     render();
+
+    initSupabase();
+    if (syncEnabled()) {
+      pullState();
+      subscribeRealtime();
+    }
   </script>
 </body>
 </html>
