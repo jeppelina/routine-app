@@ -265,6 +265,39 @@
     @keyframes burst { 0%{opacity:0.85; transform:scale(0.2)} 100%{opacity:0; transform:scale(1.5)} }
     @keyframes sparkle { 0%,100%{opacity:0; transform:scale(0.6)} 50%{opacity:1; transform:scale(1.12)} }
 
+    .admin {
+      width: min(560px, 94vw);
+      max-height: 88vh;
+      overflow-y: auto;
+      background: var(--card);
+      border-radius: 16px;
+      padding: 18px;
+      box-shadow: 0 12px 34px rgba(0,0,0,0.22);
+      text-align: left;
+    }
+    .admin-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+    .admin-x { background: transparent; border: 0; font-size: 16px; color: var(--muted); cursor: pointer; }
+    .admin-label { font-size: 12px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--faint); margin: 4px 0 8px; }
+    .admin-lists { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+    .admin-chip { border: 1px solid var(--line); background: #F3EFE7; color: var(--ink); border-radius: 999px; padding: 7px 14px; font-size: 14px; cursor: pointer; }
+    .admin-chip.active { background: var(--accent); color: #FBFAF6; border-color: var(--accent); }
+    .admin-chip.add { border-style: dashed; color: var(--muted); background: transparent; }
+    .admin-listbar { display: flex; gap: 8px; margin-bottom: 16px; }
+    .admin-mini { background: transparent; border: 1px solid var(--line); color: var(--muted); border-radius: 8px; padding: 6px 12px; font-size: 13px; cursor: pointer; }
+    .admin-mini.danger { color: #B4614E; border-color: #E4C3BB; }
+    .admin-tasks { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
+    .admin-task { display: flex; align-items: center; gap: 8px; }
+    .admin-task-text { flex: 1; min-width: 0; padding: 9px 10px; border: 1px solid var(--line); border-radius: 10px; font-size: 15px; font-family: var(--sans); color: var(--ink); background: #fff; }
+    .admin-who { display: flex; gap: 5px; flex-shrink: 0; }
+    .admin-pill { border: 1px solid var(--line); background: #F3EFE7; color: var(--muted); border-radius: 999px; padding: 5px 9px; font-size: 12px; cursor: pointer; }
+    .admin-pill.on { background: var(--accent); color: #FBFAF6; border-color: var(--accent); }
+    .admin-del { background: transparent; border: 0; color: #C3382A; font-size: 14px; cursor: pointer; padding: 4px 6px; flex-shrink: 0; }
+    .admin-empty { color: var(--muted); font-size: 14px; padding: 8px 2px; }
+    .admin-add { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; border-top: 1px solid var(--line); padding-top: 14px; }
+    .admin-add input { flex: 1 1 160px; min-width: 0; padding: 10px; border: 1px solid var(--line); border-radius: 10px; font-size: 15px; font-family: var(--sans); color: var(--ink); background: #fff; }
+    .admin-add-who { display: flex; gap: 5px; }
+    .admin-add-btn { background: var(--accent); color: #FBFAF6; border: 0; border-radius: 10px; padding: 10px 16px; font-size: 14px; cursor: pointer; }
+
     .reset-container { text-align: center; margin: 22px 0 28px; }
     #manualResetBtn {
       background: transparent;
@@ -341,11 +374,7 @@
         <img src="icons/routine-icon-180.png" alt="" class="app-icon">
         <h1>Rutiner</h1>
       </div>
-      <div class="routine-toggle" id="routine-toggle">
-        <button id="morningBtn">Morgon</button>
-        <button id="eveningBtn">Kväll</button>
-        <button id="weekendBtn">Helg</button>
-      </div>
+      <div class="routine-toggle" id="routine-toggle"></div>
     </div>
   </header>
 
@@ -366,27 +395,24 @@
     </div>
   </div>
 
-  <div id="parentOverlay" class="overlay hidden">
-    <div class="modal">
-      <div class="modal-title">Förälder: Lägg till uppgift</div>
-      <div style="display:flex; flex-direction:column; gap:12px; margin-bottom:14px;">
-        <label>Barn:
-          <select id="parentChildSelect"></select>
-        </label>
-        <label>Rutin:
-          <select id="parentRoutineSelect">
-            <option value="morgon">Morgon</option>
-            <option value="kväll">Kväll</option>
-            <option value="helg">Helg</option>
-          </select>
-        </label>
-        <label>Uppgift:
-          <input id="parentTaskInput" type="text" placeholder="Ny uppgift…">
-        </label>
+  <div id="adminOverlay" class="overlay hidden">
+    <div class="admin">
+      <div class="admin-head">
+        <div class="modal-title">Admin</div>
+        <button id="adminCloseBtn" class="admin-x" type="button" aria-label="Stäng">✕</button>
       </div>
-      <div class="modal-actions">
-        <button id="parentAddBtn" class="modal-btn">Spara</button>
-        <button id="parentCloseBtn" class="modal-btn secondary">Stäng</button>
+      <div class="admin-label">Listor</div>
+      <div class="admin-lists" id="adminLists"></div>
+      <div class="admin-listbar">
+        <button id="adminRenameBtn" class="admin-mini" type="button">Byt namn</button>
+        <button id="adminDeleteListBtn" class="admin-mini danger" type="button">Ta bort lista</button>
+      </div>
+      <div class="admin-label">Uppgifter</div>
+      <div class="admin-tasks" id="adminTasks"></div>
+      <div class="admin-add">
+        <input id="adminNewTask" type="text" placeholder="Ny uppgift…">
+        <div class="admin-add-who" id="adminNewWho"></div>
+        <button id="adminAddBtn" class="admin-add-btn" type="button">Lägg till</button>
       </div>
     </div>
   </div>
@@ -400,9 +426,9 @@
     let data;
 
     // ===== Supabase sync (shared Familje-Mello project) =====
-    // Cloud sync is OFF for now — flip CLOUD_SYNC to true (and deploy) to enable
-    // cross-device sync + stars history. Everything works locally regardless.
-    const CLOUD_SYNC = false;
+    // Cross-device sync. If the (free) project auto-pauses or is unreachable,
+    // the app silently falls back to localStorage and re-syncs when it returns.
+    const CLOUD_SYNC = true;
     const SUPABASE_URL = 'https://bhurxoknmyfqymtiaycx.supabase.co';
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJodXJ4b2tubXlmcXltdGlheWN4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE5NzI5NTAsImV4cCI6MjA5NzU0ODk1MH0.YbblDF0jfZNzdIMy8rMF3t19b7b6onD91VVLi9N8kYg';
     const HOUSEHOLD_ID = 'c16b0799-e72b-4318-99e1-12661b9f6e02';
@@ -426,12 +452,35 @@
       } catch (e) { console.warn('Supabase init failed', e); }
     }
 
+    function routineIds() { return data.routines.map(r => r.id); }
+    function routineName(id) { const r = data.routines.find(x => x.id === id); return r ? r.name : id; }
+
     function normalizeData() {
       if (!data || !Array.isArray(data.children)) return;
-      if (!data.routine) data.routine = 'morgon';
+      if (!Array.isArray(data.routines) || !data.routines.length) {
+        data.routines = [{ id: 'morgon', name: 'Morgon' }, { id: 'kväll', name: 'Kväll' }, { id: 'helg', name: 'Helg' }];
+      }
+      const ids = data.routines.map(r => r.id);
+      if (!data.routine || ids.indexOf(data.routine) < 0) data.routine = ids[0];
       data.children.forEach((ch, idx) => {
         if (!ch.world) ch.world = ['city', 'jungle', 'space'][idx % 3];
-        if (!ch.tasks) ch.tasks = { morgon: [], kväll: [], helg: [] };
+        if (!ch.tasks) ch.tasks = {};
+        ids.forEach(r => { if (!Array.isArray(ch.tasks[r])) ch.tasks[r] = []; });
+      });
+      // Ensure ids + shared group-ids (identical text in a list shares one gid)
+      ids.forEach(listId => {
+        const textGid = {};
+        data.children.forEach(ch => {
+          ch.tasks[listId].forEach(t => {
+            if (!t.id) t.id = makeId();
+            if (t.gid) textGid[t.text] = t.gid;
+            else { if (!textGid[t.text]) textGid[t.text] = 'g_' + makeId(); t.gid = textGid[t.text]; }
+          });
+        });
+      });
+      return;
+      // legacy loop retained below (unreachable)
+      data.children.forEach((ch) => {
         ['morgon', 'kväll', 'helg'].forEach(r => {
           if (!ch.tasks[r]) ch.tasks[r] = [];
           ch.tasks[r].forEach(t => { if (!t.id) t.id = makeId(); });
@@ -458,7 +507,9 @@
         if (error) throw error;
         const remote = row && row.state;
         if (remote && Array.isArray(remote.children) && remote.children.length) {
-          if (remote._src !== CLIENT_ID) adoptRemote(remote);
+          if (remote._src === CLIENT_ID) return;
+          if (remoteIsNewer(remote)) adoptRemote(remote);
+          else pushState();
         } else { pushState(); }
       } catch (e) { console.warn('Pull failed', e); }
     }
@@ -469,7 +520,7 @@
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
       applyingRemote = false;
       applyThemeForRoutine();
-      setRoutineButtons();
+      renderRoutineTabs();
       render();
     }
     function subscribeRealtime() {
@@ -479,7 +530,7 @@
           (payload) => {
             const remote = payload.new && payload.new.state;
             if (!remote || remote._src === CLIENT_ID) return;
-            adoptRemote(remote);
+            if (remoteIsNewer(remote)) adoptRemote(remote);
           })
         .subscribe();
     }
@@ -535,39 +586,167 @@
     let secretTaps = 0;
     let secretTimer = null;
 
-    function openParentModal() {
-      const overlay = document.getElementById('parentOverlay');
-      const childSelect = document.getElementById('parentChildSelect');
-      const routineSelect = document.getElementById('parentRoutineSelect');
-      const input = document.getElementById('parentTaskInput');
-      childSelect.innerHTML = '';
-      data.children.forEach((ch, idx) => {
-        const opt = document.createElement('option');
-        opt.value = String(idx);
-        opt.textContent = ch.name;
-        childSelect.appendChild(opt);
-      });
-      routineSelect.value = data.routine;
-      input.value = '';
-      overlay.classList.remove('hidden');
-      setTimeout(() => input.focus(), 50);
-    }
-    function closeParentModal() {
-      document.getElementById('parentOverlay').classList.add('hidden');
-    }
-    const parentOverlayEl = document.getElementById('parentOverlay');
-    parentOverlayEl.addEventListener('click', (e) => { if (e.target === parentOverlayEl) closeParentModal(); });
-    document.getElementById('parentCloseBtn').addEventListener('click', closeParentModal);
+    let adminListId = null;
 
-    document.getElementById('parentAddBtn').addEventListener('click', () => {
-      const childIndex = parseInt(document.getElementById('parentChildSelect').value, 10);
-      const routine = document.getElementById('parentRoutineSelect').value;
-      const text = document.getElementById('parentTaskInput').value.trim();
-      if (!text) return;
-      data.children[childIndex].tasks[routine].push({ id: makeId(), text, completed: false });
-      saveData();
+    function openAdmin() {
+      adminListId = data.routine;
+      document.getElementById('adminOverlay').classList.remove('hidden');
+      renderAdmin();
+    }
+    function closeAdmin() {
+      document.getElementById('adminOverlay').classList.add('hidden');
+      applyThemeForRoutine();
+      renderRoutineTabs();
       render();
-      closeParentModal();
+    }
+    const adminOverlayEl = document.getElementById('adminOverlay');
+    adminOverlayEl.addEventListener('click', (e) => { if (e.target === adminOverlayEl) closeAdmin(); });
+    document.getElementById('adminCloseBtn').addEventListener('click', closeAdmin);
+
+    // Group each list's per-child tasks by shared gid into one editable row.
+    function taskGroups(listId) {
+      const groups = []; const byGid = {};
+      data.children.forEach(ch => (ch.tasks[listId] || []).forEach(t => {
+        let g = byGid[t.gid];
+        if (!g) { g = { gid: t.gid, text: t.text, members: {} }; byGid[t.gid] = g; groups.push(g); }
+        g.members[ch.name] = t.id;
+      }));
+      return groups;
+    }
+    function toggleAssign(listId, g, childName) {
+      const ch = data.children.find(c => c.name === childName);
+      if (!ch) return;
+      const arr = ch.tasks[listId] || (ch.tasks[listId] = []);
+      const idx = arr.findIndex(t => t.gid === g.gid);
+      if (idx >= 0) arr.splice(idx, 1);
+      else arr.push({ id: makeId(), gid: g.gid, text: g.text, completed: false });
+      saveData();
+    }
+
+    function renderAdmin() {
+      if (routineIds().indexOf(adminListId) < 0) adminListId = data.routine;
+
+      const listsEl = document.getElementById('adminLists');
+      listsEl.innerHTML = '';
+      data.routines.forEach(r => {
+        const b = document.createElement('button');
+        b.className = 'admin-chip' + (r.id === adminListId ? ' active' : '');
+        b.type = 'button';
+        b.textContent = r.name;
+        b.addEventListener('click', () => { adminListId = r.id; renderAdmin(); });
+        listsEl.appendChild(b);
+      });
+      const addList = document.createElement('button');
+      addList.className = 'admin-chip add';
+      addList.type = 'button';
+      addList.textContent = '+ Ny lista';
+      addList.addEventListener('click', () => {
+        const name = window.prompt('Namn på ny lista:', '');
+        if (!name || !name.trim()) return;
+        const id = 'l_' + makeId();
+        data.routines.push({ id, name: name.trim() });
+        data.children.forEach(ch => { ch.tasks[id] = []; });
+        adminListId = id;
+        saveData(); renderAdmin();
+      });
+      listsEl.appendChild(addList);
+
+      const tasksEl = document.getElementById('adminTasks');
+      tasksEl.innerHTML = '';
+      const groups = taskGroups(adminListId);
+      groups.forEach(g => {
+        const row = document.createElement('div');
+        row.className = 'admin-task';
+        const input = document.createElement('input');
+        input.className = 'admin-task-text';
+        input.value = g.text;
+        input.addEventListener('change', () => {
+          const v = input.value.trim();
+          if (!v) { input.value = g.text; return; }
+          data.children.forEach(ch => (ch.tasks[adminListId] || []).forEach(t => { if (t.gid === g.gid) t.text = v; }));
+          g.text = v;
+          saveData();
+        });
+        const who = document.createElement('div');
+        who.className = 'admin-who';
+        data.children.forEach(ch => {
+          const p = document.createElement('button');
+          p.className = 'admin-pill' + (g.members[ch.name] ? ' on' : '');
+          p.type = 'button';
+          p.textContent = ch.name;
+          p.title = ch.name;
+          p.addEventListener('click', () => { toggleAssign(adminListId, g, ch.name); renderAdmin(); });
+          who.appendChild(p);
+        });
+        const del = document.createElement('button');
+        del.className = 'admin-del';
+        del.type = 'button';
+        del.textContent = '✕';
+        del.setAttribute('aria-label', 'Ta bort');
+        del.addEventListener('click', () => {
+          data.children.forEach(ch => {
+            const arr = ch.tasks[adminListId] || [];
+            for (let i = arr.length - 1; i >= 0; i--) if (arr[i].gid === g.gid) arr.splice(i, 1);
+          });
+          saveData(); renderAdmin();
+        });
+        row.appendChild(input); row.appendChild(who); row.appendChild(del);
+        tasksEl.appendChild(row);
+      });
+      if (!groups.length) {
+        const empty = document.createElement('div');
+        empty.className = 'admin-empty';
+        empty.textContent = 'Inga uppgifter än. Lägg till nedan.';
+        tasksEl.appendChild(empty);
+      }
+
+      const whoNew = document.getElementById('adminNewWho');
+      whoNew.innerHTML = '';
+      data.children.forEach(ch => {
+        const p = document.createElement('button');
+        p.className = 'admin-pill on';
+        p.type = 'button';
+        p.dataset.child = ch.name;
+        p.textContent = ch.name;
+        p.addEventListener('click', () => p.classList.toggle('on'));
+        whoNew.appendChild(p);
+      });
+    }
+
+    document.getElementById('adminAddBtn').addEventListener('click', () => {
+      const input = document.getElementById('adminNewTask');
+      const text = input.value.trim();
+      if (!text) return;
+      const who = [...document.querySelectorAll('#adminNewWho .admin-pill.on')].map(p => p.dataset.child);
+      const targets = who.length ? who : data.children.map(c => c.name);
+      const gid = 'g_' + makeId();
+      targets.forEach(name => {
+        const ch = data.children.find(c => c.name === name);
+        (ch.tasks[adminListId] || (ch.tasks[adminListId] = [])).push({ id: makeId(), gid, text, completed: false });
+      });
+      input.value = '';
+      saveData(); renderAdmin();
+    });
+    document.getElementById('adminNewTask').addEventListener('keydown', (e) => { if (e.key === 'Enter') document.getElementById('adminAddBtn').click(); });
+
+    document.getElementById('adminRenameBtn').addEventListener('click', () => {
+      const r = data.routines.find(x => x.id === adminListId);
+      if (!r) return;
+      const name = window.prompt('Byt namn på listan:', r.name);
+      if (!name || !name.trim()) return;
+      r.name = name.trim();
+      saveData(); renderAdmin();
+    });
+    document.getElementById('adminDeleteListBtn').addEventListener('click', () => {
+      if (data.routines.length <= 1) { alert('Det måste finnas minst en lista.'); return; }
+      const r = data.routines.find(x => x.id === adminListId);
+      if (!r) return;
+      if (!confirm('Ta bort listan "' + r.name + '" och alla dess uppgifter?')) return;
+      data.routines = data.routines.filter(x => x.id !== adminListId);
+      data.children.forEach(ch => { delete ch.tasks[adminListId]; });
+      if (data.routine === adminListId) data.routine = data.routines[0].id;
+      adminListId = data.routine;
+      saveData(); renderAdmin();
     });
 
     const iconEl = document.querySelector('.app-icon');
@@ -580,7 +759,7 @@
         if (secretTaps >= 7) {
           clearTimeout(secretTimer);
           secretTaps = 0; secretTimer = null;
-          openParentModal();
+          openAdmin();
         }
       });
     }
@@ -591,8 +770,18 @@
       kväll:  { '--paper': '#ECEAF1', '--accent': '#6E6690', '--accent-hover': '#5C5580' },
       helg:   { '--paper': '#F5EFE4', '--accent': '#5E8A82', '--accent-hover': '#4E7A72' }
     };
+    const DEFAULT_THEMES = [
+      { '--paper': '#EFEDE6', '--accent': '#8A7E6A', '--accent-hover': '#786D5B' },
+      { '--paper': '#EAF0EE', '--accent': '#5E8A82', '--accent-hover': '#4E7A72' },
+      { '--paper': '#F1ECE4', '--accent': '#9A7B6A', '--accent-hover': '#87695A' },
+      { '--paper': '#EDEFEA', '--accent': '#78896B', '--accent-hover': '#67785B' }
+    ];
     function applyThemeForRoutine() {
-      const theme = THEMES[data.routine] || THEMES.morgon;
+      let theme = THEMES[data.routine];
+      if (!theme) {
+        const idx = Math.max(0, routineIds().indexOf(data.routine));
+        theme = DEFAULT_THEMES[idx % DEFAULT_THEMES.length];
+      }
       const root = document.documentElement;
       Object.entries(theme).forEach(([k, v]) => root.style.setProperty(k, v));
     }
@@ -612,6 +801,7 @@
       data = {
         routine: 'morgon',
         lastReset: null,
+        routines: [{ id: 'morgon', name: 'Morgon' }, { id: 'kväll', name: 'Kväll' }, { id: 'helg', name: 'Helg' }],
         children: defaultChildren.map((name, idx) => ({ name, world: ['city', 'jungle', 'space'][idx % 3], tasks: { morgon: [], kväll: [], helg: [] } }))
       };
       data.children.forEach(child => {
@@ -623,12 +813,17 @@
           });
         });
       });
+      normalizeData();
       saveData();
     }
 
     function saveData() {
+      if (!applyingRemote) data.updatedAt = new Date().toISOString();
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
       schedulePush();
+    }
+    function remoteIsNewer(remote) {
+      return (remote.updatedAt || '') > (data.updatedAt || '');
     }
 
     // Clear yesterday's checks on the first open of a new day.
@@ -637,7 +832,7 @@
       if (!data.lastReset) { data.lastReset = today; saveData(); return; }
       if (data.lastReset !== today) {
         data.children.forEach(ch => {
-          ['morgon', 'kväll', 'helg'].forEach(r => (ch.tasks[r] || []).forEach(t => t.completed = false));
+          routineIds().forEach(r => (ch.tasks[r] || []).forEach(t => t.completed = false));
         });
         data.lastReset = today;
         saveData();
@@ -653,7 +848,6 @@
     const PET_SLOTS = {
       head: ['horn', 'crown', 'headphones'],
       face: ['glasses', 'gem'],
-      neck: ['mane'],
       back: ['wings', 'cape', 'sword', 'staff', 'jetpack', 'drone'],
       hand: ['claws', 'tnt'],
       feet: ['bigboots'],
@@ -765,7 +959,6 @@
           </g></g>
 
           <g class="traits-front">
-            <g class="trait tr-mane"><path d="M-46 -116 q-14 22 6 40 q-22 -2 -28 -20 q-4 -16 22 -20 Z" fill="#A87E4E"/><path d="M46 -116 q14 22 -6 40 q22 -2 28 -20 q4 -16 -22 -20 Z" fill="#A87E4E"/><path d="M-40 -104 q40 22 80 0 q-14 26 -40 26 q-26 0 -40 -26 Z" fill="#A87E4E"/></g>
             <g class="trait tr-claws"><path d="M-56 -50 l-4 12 l7 -4 Z" fill="#EFE7D5"/><path d="M-49 -48 l-3 13 l7 -4 Z" fill="#EFE7D5"/><path d="M-42 -50 l-2 12 l7 -4 Z" fill="#EFE7D5"/><path d="M56 -50 l4 12 l-7 -4 Z" fill="#EFE7D5"/><path d="M49 -48 l3 13 l-7 -4 Z" fill="#EFE7D5"/><path d="M42 -50 l2 12 l-7 -4 Z" fill="#EFE7D5"/></g>
             <g class="trait tr-tnt"><g transform="rotate(-12 52 -66)"><rect x="44" y="-78" width="9" height="26" rx="2" fill="#C4402F"/><rect x="53" y="-78" width="9" height="26" rx="2" fill="#C4402F"/><rect x="42" y="-70" width="22" height="7" fill="#E8C98A"/><path d="M53 -78 q6 -10 12 -6" fill="none" stroke="#5A4A38" stroke-width="2"/><circle cx="66" cy="-84" r="2.5" fill="#F0A93C"/></g></g>
             <g class="firetail trait tr-firetail"><path class="flame" d="M56 -46 q30 -6 42 24 q6 -32 -8 -50 q-2 22 -22 18 q-8 2 -12 8 Z" fill="url(#petFire)"/><path class="flame" d="M72 -42 q14 -2 20 14 q6 -18 -2 -30 q-4 14 -18 16 Z" fill="#F3C86A"/></g>
@@ -896,23 +1089,26 @@
       });
     }
 
-    function setRoutineButtons() {
-      const map = { morgon: 'morningBtn', kväll: 'eveningBtn', helg: 'weekendBtn' };
-      ['morningBtn', 'eveningBtn', 'weekendBtn'].forEach(id => document.getElementById(id).classList.remove('active'));
-      const el = document.getElementById(map[data.routine]);
-      if (el) el.classList.add('active');
+    function renderRoutineTabs() {
+      const bar = document.getElementById('routine-toggle');
+      bar.innerHTML = '';
+      data.routines.forEach(r => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.textContent = r.name;
+        if (r.id === data.routine) b.classList.add('active');
+        b.addEventListener('click', () => switchRoutine(r.id));
+        bar.appendChild(b);
+      });
     }
 
     function switchRoutine(routine) {
       data.routine = routine;
       saveData();
       applyThemeForRoutine();
-      setRoutineButtons();
+      renderRoutineTabs();
       render();
     }
-    document.getElementById('morningBtn').addEventListener('click', () => switchRoutine('morgon'));
-    document.getElementById('eveningBtn').addEventListener('click', () => switchRoutine('kväll'));
-    document.getElementById('weekendBtn').addEventListener('click', () => switchRoutine('helg'));
 
     document.getElementById('manualResetBtn').addEventListener('click', () => {
       if (!confirm('Vill du återställa rutinen?')) return;
@@ -948,7 +1144,7 @@
     initData();
     checkDailyReset();
     applyThemeForRoutine();
-    setRoutineButtons();
+    renderRoutineTabs();
     render();
 
     initSupabase();
