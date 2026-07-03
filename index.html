@@ -282,6 +282,8 @@
     .admin-chip { border: 1px solid var(--line); background: #F3EFE7; color: var(--ink); border-radius: 999px; padding: 7px 14px; font-size: 14px; cursor: pointer; }
     .admin-chip.active { background: var(--accent); color: #FBFAF6; border-color: var(--accent); }
     .admin-chip.add { border-style: dashed; color: var(--muted); background: transparent; }
+    .admin-chip.inactive { opacity: 0.45; }
+    .admin-chip.inactive.active { opacity: 0.7; }
     .admin-listbar { display: flex; gap: 8px; margin-bottom: 16px; }
     .admin-mini { background: transparent; border: 1px solid var(--line); color: var(--muted); border-radius: 8px; padding: 6px 12px; font-size: 13px; cursor: pointer; }
     .admin-mini.danger { color: #B4614E; border-color: #E4C3BB; }
@@ -404,6 +406,7 @@
       <div class="admin-label">Listor</div>
       <div class="admin-lists" id="adminLists"></div>
       <div class="admin-listbar">
+        <button id="adminToggleActiveBtn" class="admin-mini" type="button">Dölj lista</button>
         <button id="adminRenameBtn" class="admin-mini" type="button">Byt namn</button>
         <button id="adminDeleteListBtn" class="admin-mini danger" type="button">Ta bort lista</button>
       </div>
@@ -462,6 +465,9 @@
       }
       const ids = data.routines.map(r => r.id);
       if (!data.routine || ids.indexOf(data.routine) < 0) data.routine = ids[0];
+      data.routines.forEach(r => { if (r.active === undefined) r.active = true; });
+      const activeIds = data.routines.filter(r => r.active !== false).map(r => r.id);
+      if (activeIds.length && activeIds.indexOf(data.routine) < 0) data.routine = activeIds[0];
       data.children.forEach((ch, idx) => {
         if (!ch.world) ch.world = ['city', 'jungle', 'space'][idx % 3];
         if (!ch.tasks) ch.tasks = {};
@@ -630,12 +636,15 @@
       listsEl.innerHTML = '';
       data.routines.forEach(r => {
         const b = document.createElement('button');
-        b.className = 'admin-chip' + (r.id === adminListId ? ' active' : '');
+        b.className = 'admin-chip' + (r.id === adminListId ? ' active' : '') + (r.active === false ? ' inactive' : '');
         b.type = 'button';
         b.textContent = r.name;
         b.addEventListener('click', () => { adminListId = r.id; renderAdmin(); });
         listsEl.appendChild(b);
       });
+      const curList = data.routines.find(r => r.id === adminListId);
+      const tgl = document.getElementById('adminToggleActiveBtn');
+      if (tgl) tgl.textContent = (curList && curList.active === false) ? 'Visa lista' : 'Dölj lista';
       const addList = document.createElement('button');
       addList.className = 'admin-chip add';
       addList.type = 'button';
@@ -644,7 +653,7 @@
         const name = window.prompt('Namn på ny lista:', '');
         if (!name || !name.trim()) return;
         const id = 'l_' + makeId();
-        data.routines.push({ id, name: name.trim() });
+        data.routines.push({ id, name: name.trim(), active: true });
         data.children.forEach(ch => { ch.tasks[id] = []; });
         adminListId = id;
         saveData(); renderAdmin();
@@ -728,6 +737,23 @@
       saveData(); renderAdmin();
     });
     document.getElementById('adminNewTask').addEventListener('keydown', (e) => { if (e.key === 'Enter') document.getElementById('adminAddBtn').click(); });
+
+    document.getElementById('adminToggleActiveBtn').addEventListener('click', () => {
+      const r = data.routines.find(x => x.id === adminListId);
+      if (!r) return;
+      const currentlyActive = (r.active !== false);
+      if (currentlyActive && data.routines.filter(x => x.active !== false).length <= 1) {
+        alert('Minst en lista måste vara aktiv.');
+        return;
+      }
+      r.active = !currentlyActive;
+      if (r.active === false && data.routine === r.id) {
+        const firstActive = data.routines.find(x => x.active !== false);
+        if (firstActive) data.routine = firstActive.id;
+      }
+      saveData();
+      renderAdmin();
+    });
 
     document.getElementById('adminRenameBtn').addEventListener('click', () => {
       const r = data.routines.find(x => x.id === adminListId);
@@ -1092,7 +1118,7 @@
     function renderRoutineTabs() {
       const bar = document.getElementById('routine-toggle');
       bar.innerHTML = '';
-      data.routines.forEach(r => {
+      data.routines.filter(r => r.active !== false).forEach(r => {
         const b = document.createElement('button');
         b.type = 'button';
         b.textContent = r.name;
