@@ -1023,12 +1023,22 @@
     const WORLDS = ['city', 'jungle', 'space'];
     // Low-res scene buffer size (drawn scaled up onto the visible canvas).
     const SCENE_W = 150, SCENE_H = 84, GROUND_Y = 74;
-    // Per-world ledge: {x0,x1,top} in low-res scene coords.
-    const LEDGES = {
-      city:   { x0: 96, x1: 138, top: 52 },
-      jungle: { x0: 12, x1: 52,  top: 50 },
-      space:  { x0: 98, x1: 140, top: 48 }
+    // Dense floating platforms (shared layout, styled per world). Heights/spacing
+    // tuned so a jump (reach ~20px) climbs exactly one level; ~18px gaps let the
+    // pet fall a level when it steps off an edge. Levels overlap in x so 1->2->3
+    // is climbable.
+    const PLATFORMS = [
+      { x0:18, x1:44,  top:58 }, { x0:62, x1:88,  top:58 }, { x0:106, x1:132, top:58 }, // level 1
+      { x0:30, x1:56,  top:42 }, { x0:84, x1:110, top:42 },                             // level 2
+      { x0:40, x1:64,  top:27 }                                                          // level 3
+    ];
+    const PLAT_STYLE = {
+      city:   { face:'#3F4260', top:'#5C6088', edge:'#2E3150' },
+      jungle: { face:'#5E7A49', top:'#7E9A69', edge:'#43603A' },
+      space:  { face:'#332E52', top:'#4A4570', edge:'#5C5588' }
     };
+    const P_G = 0.8, P_JUMP = -5.6;   // gravity + jump impulse (peak reach ~19.6px)
+    function topsAt(px){ const a=[GROUND_Y]; for(const p of PLATFORMS){ if(px>=p.x0 && px<=p.x1) a.push(p.top); } return a; }
     function lerp(a,b,t){ return a+(b-a)*t; }
     function fillBand(ctx, y0, y1, c){ ctx.fillStyle=c; ctx.fillRect(0, y0, SCENE_W, y1-y0); }
     function vgrad(ctx, y0, y1, top, bot){
@@ -1038,11 +1048,13 @@
         ctx.fillRect(0,y,SCENE_W,1);
       }
     }
-    function drawLedge(ctx, world, faceLight, faceDark, edge){
-      const L=LEDGES[world]; if(!L) return;
-      ctx.fillStyle=faceDark; ctx.fillRect(L.x0, L.top, L.x1-L.x0, GROUND_Y-L.top);
-      ctx.fillStyle=faceLight; ctx.fillRect(L.x0, L.top, L.x1-L.x0, 4);
-      ctx.fillStyle=edge; ctx.fillRect(L.x0, L.top, L.x1-L.x0, 1);
+    function drawPlatforms(ctx, world){
+      const s = PLAT_STYLE[world] || PLAT_STYLE.city;
+      for(const p of PLATFORMS){
+        ctx.fillStyle=s.face; ctx.fillRect(p.x0, p.top, p.x1-p.x0, 6);
+        ctx.fillStyle=s.top;  ctx.fillRect(p.x0, p.top, p.x1-p.x0, 2);
+        ctx.fillStyle=s.edge; ctx.fillRect(p.x0, p.top, p.x1-p.x0, 1);
+      }
     }
     function drawWorld(ctx, world){
       ctx.clearRect(0,0,SCENE_W,SCENE_H);
@@ -1056,7 +1068,7 @@
         ctx.fillStyle='#6E8B5D'; ctx.fillRect(0,64,SCENE_W,GROUND_Y-64);
         // vine
         ctx.fillStyle='#6E8B5D'; for(let y=0;y<28;y++){ ctx.fillRect(14+Math.round(Math.sin(y/5)*2), y, 2, 1); }
-        drawLedge(ctx,'jungle','#7E9A69','#5E7A49','#4E6A43');
+        drawPlatforms(ctx,'jungle');
         fillBand(ctx,GROUND_Y,SCENE_H,'#4E6A43');
         ctx.fillStyle='#43603A'; ctx.fillRect(0,GROUND_Y,SCENE_W,2);
       } else if(world==='space'){
@@ -1067,7 +1079,7 @@
         // planet with ring
         ctx.fillStyle='#C89A76'; for(let y=-7;y<=7;y++) for(let x=-7;x<=7;x++){ if(x*x+y*y<=52) ctx.fillRect(122+x,26+y,1,1); }
         ctx.fillStyle='#E0CBAE'; for(let x=-13;x<=13;x++){ ctx.fillRect(122+x,26+Math.round(x*0.28),1,1); }
-        drawLedge(ctx,'space','#4A4570','#332E52','#5C5588');
+        drawPlatforms(ctx,'space');
         fillBand(ctx,GROUND_Y,SCENE_H,'#2C2848');
         ctx.fillStyle='#3E3760'; ctx.fillRect(0,GROUND_Y,SCENE_W,2);
       } else { // city dusk
@@ -1080,7 +1092,7 @@
         ctx.fillStyle='#3F4260'; ctx.fillRect(48,54,18,GROUND_Y-54); ctx.fillRect(70,58,20,GROUND_Y-58);
         // lit windows
         ctx.fillStyle='#EBBB7A'; [[52,58],[58,58],[74,62],[82,62],[100,54],[26,56]].forEach(w=>ctx.fillRect(w[0],w[1],2,2));
-        drawLedge(ctx,'city','#6A6E8C','#4A4E6C','#8A8EA8');
+        drawPlatforms(ctx,'city');
         fillBand(ctx,GROUND_Y,SCENE_H,'#4A4E6C');
         ctx.fillStyle='#3A3E58'; ctx.fillRect(0,GROUND_Y,SCENE_W,2);
       }
@@ -1140,9 +1152,9 @@
       const ctl = {
         i, canvas, ctx, wlo, wctx,
         world: null, cssW: 0, cssH: 0, scale: 1,
-        posX: SCENE_W/2, dir: 1, hopT: 0, nextHop: 120 + Math.floor(Math.random()*120),
+        posX: SCENE_W/2, dir: 1, y: GROUND_Y, vy: 0, grounded: true, nextHop: 60 + Math.floor(Math.random()*120),
         moving: false, moveT: 0, idleT: 60 + Math.floor(Math.random()*180), compX: SCENE_W/2 - 30,
-        onLedge: false, frame: Math.floor(Math.random()*200)
+        frame: Math.floor(Math.random()*200)
       };
       ctl.redrawWorld = function(){
         const w = (data.children[i] && data.children[i].world) || 'city';
@@ -1175,7 +1187,7 @@
 
     function hopPet(i){
       const c = petCtl[i];
-      if (c && c.hopT === 0) { c.hopT = 26; }
+      if (c && c.grounded) { c.vy = P_JUMP; c.grounded = false; }
     }
 
     // repurposed: read stage/species/world live; optionally hop on task tap / evolve
@@ -1212,41 +1224,43 @@
       const isCompanion = rawGadget === 'dog' || rawGadget === 'rc';
       const gadget = isCompanion ? null : rawGadget;
 
-      // motion: wander left/right within scene
-      const ledge = LEDGES[c.world];
-      const margin = 18;
+      const margin = 16;
       const br = Math.sin(f/34), sy = 1 + br*0.03, sx = 1 - br*0.02;
       const blink = (f % 190) < 6;
       let footL=0, footR=0, bob=0;
-      // motion state machine: idle most of the time, then a short move burst
+
+      // ---- horizontal: idle most of the time, then a short move burst ----
       if (c.moving) {
         c.moveT--;
         c.posX += c.dir * 0.6;
         if (c.posX > SCENE_W - margin) { c.posX = SCENE_W - margin; c.dir = -1; }
         if (c.posX < margin) { c.posX = margin; c.dir = 1; }
-        const wp = Math.floor(f/6) % 2; footL = wp===0?1:0; footR = wp===1?1:0;
-        bob = (Math.floor(f/6)%2===0) ? R : 0;
+        if (c.grounded) { const wp = Math.floor(f/6) % 2; footL = wp===0?1:0; footR = wp===1?1:0; bob = (wp===0) ? R : 0; }
         if (c.moveT <= 0) { c.moving = false; c.idleT = 150 + Math.floor(Math.random()*300); }
       } else {
         c.idleT--;
         if (c.idleT <= 0) { c.moving = true; c.moveT = 24 + Math.floor(Math.random()*70); if (Math.random() < 0.5) c.dir = -c.dir; }
       }
 
-      // occasional hop (only when not already hopping)
-      if (c.hopT === 0) { c.nextHop--; if (c.nextHop <= 0) { c.hopT = 26; c.nextHop = 160 + Math.floor(Math.random()*160); } }
-      let hopPx = 0, hsx = 1, hsy = 1;
-      if (c.hopT > 0) { const p = 1 - c.hopT/26; hopPx = -Math.sin(p*Math.PI)*20; if (p<0.14){hsx=1.12;hsy=0.86;} else if (p>0.88){hsx=1.1;hsy=0.9;} c.hopT--; }
-
-      // ledge logic: while hopping over the ledge span, land/perch on top;
-      // step off (perch released) once past its horizontal edges.
-      const overLedge = ledge && c.posX >= ledge.x0 - 1 && c.posX <= ledge.x1 + 1;
-      if (overLedge) {
-        const hopPeak = GROUND_Y + Math.round(hopPx);
-        if (hopPeak <= ledge.top + 2 && c.hopT === 0) c._perched = true;
-      } else {
-        c._perched = false;
+      // ---- vertical: gravity + platform hopping ----
+      if (c.grounded) {
+        // still supported at this x? (walked off an edge => fall)
+        if (!topsAt(c.posX).some(T => Math.abs(T - c.y) < 0.6)) { c.grounded = false; c.vy = 0; }
+        else { c.nextHop--; if (c.nextHop <= 0) { c.vy = P_JUMP; c.grounded = false; c.nextHop = 70 + Math.floor(Math.random()*150); } }
       }
-      c.onLedge = !!c._perched;
+      if (!c.grounded) {
+        const prevY = c.y;
+        c.vy += P_G; c.y += c.vy;
+        if (c.vy > 0) {
+          const cand = topsAt(c.posX).filter(T => T >= prevY - 0.6 && T <= c.y + 0.6);
+          if (cand.length) { c.y = Math.min.apply(null, cand); c.vy = 0; c.grounded = true; c.nextHop = 40 + Math.floor(Math.random()*140); }
+        }
+        if (c.y > GROUND_Y) { c.y = GROUND_Y; c.vy = 0; c.grounded = true; }
+      }
+
+      // squash/stretch from vertical speed (elongate when moving fast up/down)
+      let hsx = 1, hsy = 1;
+      if (!c.grounded) { const st2 = Math.min(0.14, Math.abs(c.vy) * 0.024); hsy = 1 + st2; hsx = 1 - st2 * 0.6; }
 
       const grid = build(species, st, { blink, sx: sx*hsx, sy: sy*hsy, footL, footR, gadget, frame: f });
       _lctx.clearRect(0,0,CREW,CREH);
@@ -1259,13 +1273,12 @@
       ctx.clearRect(0,0,c.canvas.width,c.canvas.height);
       ctx.drawImage(c.wlo, 0,0,SCENE_W,SCENE_H, 0,0,c.canvas.width,c.canvas.height);
 
-      // feet baseline in scene coords (ledge top if perched, else ground)
-      const feetY = (c._perched ? ledge.top : GROUND_Y) + hopPx;
-      const lift = Math.abs(hopPx)/20;
-
-      // ground shadow (stays on the surface directly under the pet)
-      const shadowY = (c._perched ? ledge.top : GROUND_Y) + 1;
-      ctx.fillStyle = 'rgba(45,42,34,'+(0.16 - lift*0.08)+')';
+      // feet at the pet's live y; shadow on the nearest surface below
+      const feetY = c.y;
+      const below = topsAt(c.posX).filter(T => T >= c.y - 0.5);
+      const shadowY = (below.length ? Math.min.apply(null, below) : GROUND_Y) + 1;
+      const lift = Math.max(0, (shadowY - 1 - c.y)) / 20;
+      ctx.fillStyle = 'rgba(45,42,34,'+(0.16 - lift*0.09)+')';
       ctx.beginPath();
       ctx.ellipse(c.posX*sX, shadowY*sY, (9 - lift*3)*sX, 2*sY, 0, 0, Math.PI*2);
       ctx.fill();
