@@ -400,6 +400,10 @@
     let sb = null;
     let applyingRemote = false;
     let pushTimer = null;
+    // Held true until the first cloud pull resolves, so a freshly-seeded device
+    // can never push its default state before it has had a chance to adopt the
+    // real household data. Prevents a new/cleared device from clobbering the cloud.
+    let firstSyncDone = false;
 
     function syncEnabled() {
       return CLOUD_SYNC && !!sb && HOUSEHOLD_ID && HOUSEHOLD_ID.indexOf('__') !== 0;
@@ -456,7 +460,7 @@
     }
 
     function schedulePush() {
-      if (!syncEnabled() || applyingRemote) return;
+      if (!syncEnabled() || applyingRemote || !firstSyncDone) return;
       clearTimeout(pushTimer);
       pushTimer = setTimeout(pushState, 400);
     }
@@ -468,21 +472,30 @@
       } catch (e) { console.warn('Push failed', e); }
     }
     async function pullState() {
-      if (!syncEnabled()) return;
+      if (!syncEnabled()) { firstSyncDone = true; return; }
       try {
         const { data: row, error } = await sb.from('households').select('state').eq('id', HOUSEHOLD_ID).single();
         if (error) throw error;
         const remote = row && row.state;
         if (remote && Array.isArray(remote.children) && remote.children.length) {
           if (remote._src === CLIENT_ID) return;
-          if (remoteIsNewer(remote)) adoptRemote(remote);
+          // A freshly-seeded device (empty localStorage → default lists) must NEVER
+          // overwrite a populated cloud. Always adopt the real household data instead.
+          if (data._seeded) adoptRemote(remote);
+          else if (remoteIsNewer(remote)) adoptRemote(remote);
           else pushState();
-        } else { pushState(); }
+        } else {
+          // Cloud is empty: only seed it from a device that actually holds real data,
+          // never from a fresh default seed (which would just plant defaults).
+          if (!data._seeded) pushState();
+        }
       } catch (e) { console.warn('Pull failed', e); }
+      finally { firstSyncDone = true; }
     }
     function adoptRemote(remote) {
       applyingRemote = true;
       data = remote;
+      data._seeded = false;
       normalizeData();
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
       applyingRemote = false;
@@ -782,12 +795,15 @@
       if (stored) {
         data = JSON.parse(stored);
         normalizeData();
-        saveData();
+        persist();
         return;
       }
+      // No stored data: build a default seed. Mark it as a seed so the first cloud
+      // pull adopts the real household instead of pushing these defaults over it.
       data = {
         routine: 'morgon',
         lastReset: null,
+        _seeded: true,
         routines: [{ id: 'morgon', name: 'Morgon' }, { id: 'kväll', name: 'Kväll' }, { id: 'helg', name: 'Helg' }],
         children: defaultChildren.map((name, idx) => ({ name, world: ['city', 'jungle', 'space'][idx % 3], species: ['kanin', 'rav', 'uggla'][idx % 3], tasks: { morgon: [], kväll: [], helg: [] } }))
       };
@@ -801,11 +817,23 @@
         });
       });
       normalizeData();
-      saveData();
+      persist();
     }
 
+    // Local-only persist: no timestamp bump, no cloud push. Used during boot/migration
+    // and daily reset so opening the app never re-stamps or pushes unchanged state.
+    function persist() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    }
+    // Genuine user edit: this device now holds real (non-seed) data, so stamp the
+    // time, drop the seed flag, and sync it out.
     function saveData() {
-      if (!applyingRemote) data.updatedAt = new Date().toISOString();
+      if (!applyingRemote) {
+        data.updatedAt = new Date().toISOString();
+        // Keep the seed flag until the first cloud pull has resolved, so an early
+        // tap on a still-seeded device can't turn it into a cloud-clobbering push.
+        if (firstSyncDone) data._seeded = false;
+      }
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
       schedulePush();
     }
@@ -814,15 +842,18 @@
     }
 
     // Clear yesterday's checks on the first open of a new day.
+    // A fresh seed just records the date locally (persist) so it keeps its seed flag
+    // until the cloud pull; a real reset on real data stamps + syncs as before.
     function checkDailyReset() {
       const today = todayStockholm();
-      if (!data.lastReset) { data.lastReset = today; saveData(); return; }
+      const saveReset = () => { data._seeded ? persist() : saveData(); };
+      if (!data.lastReset) { data.lastReset = today; saveReset(); return; }
       if (data.lastReset !== today) {
         data.children.forEach(ch => {
           routineIds().forEach(r => (ch.tasks[r] || []).forEach(t => t.completed = false));
         });
         data.lastReset = today;
-        saveData();
+        saveReset();
       }
     }
 
