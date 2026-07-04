@@ -424,6 +424,8 @@
 
     function normalizeData() {
       if (!data || !Array.isArray(data.children)) return;
+      if (!data.deletedLists) data.deletedLists = {};
+      if (!data.deletedTasks) data.deletedTasks = {};
       if (!Array.isArray(data.routines) || !data.routines.length) {
         data.routines = [{ id: 'morgon', name: 'Morgon' }, { id: 'kväll', name: 'Kväll' }, { id: 'helg', name: 'Helg' }];
       }
@@ -449,6 +451,18 @@
           });
         });
       });
+      // Drop within-list duplicates (a group id appears at most once per child) so a
+      // union-merge across devices can't leave two copies of the same task.
+      data.children.forEach(ch => {
+        ids.forEach(listId => {
+          const seen = {};
+          ch.tasks[listId] = ch.tasks[listId].filter(t => {
+            if (!t.gid) return true;
+            if (seen[t.gid]) return false;
+            seen[t.gid] = 1; return true;
+          });
+        });
+      });
       return;
       // legacy loop retained below (unreachable)
       data.children.forEach((ch) => {
@@ -464,10 +478,14 @@
       clearTimeout(pushTimer);
       pushTimer = setTimeout(pushState, 400);
     }
-    async function pushState() {
+    function pushState() {
+      if (!syncEnabled() || !firstSyncDone) return;
+      pushRemote(data);
+    }
+    async function pushRemote(state) {
       if (!syncEnabled()) return;
       try {
-        const payload = Object.assign({}, data, { _src: CLIENT_ID });
+        const payload = Object.assign({}, state, { _src: CLIENT_ID });
         await sb.from('households').update({ state: payload, updated_at: new Date().toISOString() }).eq('id', HOUSEHOLD_ID);
       } catch (e) { console.warn('Push failed', e); }
     }
@@ -477,42 +495,113 @@
         const { data: row, error } = await sb.from('households').select('state').eq('id', HOUSEHOLD_ID).single();
         if (error) throw error;
         const remote = row && row.state;
+        firstSyncDone = true;
         if (remote && Array.isArray(remote.children) && remote.children.length) {
-          if (remote._src === CLIENT_ID) return;
-          // A freshly-seeded device (empty localStorage → default lists) must NEVER
-          // overwrite a populated cloud. Always adopt the real household data instead.
-          if (data._seeded) adoptRemote(remote);
-          else if (remoteIsNewer(remote)) adoptRemote(remote);
-          else pushState();
-        } else {
-          // Cloud is empty: only seed it from a device that actually holds real data,
-          // never from a fresh default seed (which would just plant defaults).
-          if (!data._seeded) pushState();
+          reconcile(remote);
+        } else if (!data._seeded) {
+          // Cloud empty: seed it from real data only, never from a bare default seed.
+          pushRemote(data);
         }
-      } catch (e) { console.warn('Pull failed', e); }
-      finally { firstSyncDone = true; }
+      } catch (e) { console.warn('Pull failed', e); firstSyncDone = true; }
     }
-    function adoptRemote(remote) {
-      applyingRemote = true;
-      data = remote;
-      data._seeded = false;
-      normalizeData();
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-      applyingRemote = false;
-      applyThemeForRoutine();
-      renderRoutineTabs();
-      render();
+    // Bring local and cloud into agreement. A fresh default seed has nothing worth
+    // keeping, so it adopts the cloud wholesale. Two real devices are UNION-merged so
+    // a list/task added on either side survives a stale push from the other; deletions
+    // are honoured through tombstones so they don't come back.
+    function reconcile(remote) {
+      if (!remote || remote._src === CLIENT_ID) return;
+      const rem = Object.assign({}, remote); delete rem._src;
+      let merged;
+      if (data._seeded) {
+        merged = rem;                                      // seed → take the household as-is
+      } else {
+        merged = mergeStates(data, rem);
+      }
+      // Does our merge carry content the cloud is missing? If so, stamp it as the newest
+      // revision so even devices still running the old (whole-blob) code adopt the
+      // superset instead of re-clobbering it. This is what makes a re-added list stick.
+      const addsToCloud = !data._seeded && sig(merged) !== sig(rem);
+      if (addsToCloud) merged = Object.assign({}, merged, { updatedAt: new Date().toISOString() });
+      const changedLocal = sig(merged) !== sig(data) || (addsToCloud && merged.updatedAt !== data.updatedAt);
+      if (changedLocal) {
+        applyingRemote = true;
+        data = merged;
+        data._seeded = false;
+        normalizeData();
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+        applyingRemote = false;
+        applyThemeForRoutine();
+        renderRoutineTabs();
+        render();
+      }
+      if (addsToCloud) pushRemote(merged);
     }
     function subscribeRealtime() {
       if (!syncEnabled()) return;
       sb.channel('household-' + HOUSEHOLD_ID)
         .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'households', filter: 'id=eq.' + HOUSEHOLD_ID },
-          (payload) => {
-            const remote = payload.new && payload.new.state;
-            if (!remote || remote._src === CLIENT_ID) return;
-            if (remoteIsNewer(remote)) adoptRemote(remote);
-          })
+          (payload) => { reconcile(payload.new && payload.new.state); })
         .subscribe();
+    }
+    function mergeTomb(a, b) {
+      const out = Object.assign({}, a || {});
+      const bb = b || {};
+      for (const k in bb) { if (!out[k] || bb[k] > out[k]) out[k] = bb[k]; }
+      return out;
+    }
+    // Union-merge two household states. Presence is add-wins (a list/task on either
+    // side is kept unless tombstoned); field conflicts (name, completed, world) go to
+    // whichever side was saved more recently.
+    function mergeStates(a, b) {
+      a = a || {}; b = b || {};
+      const aNewer = (a.updatedAt || '') >= (b.updatedAt || '');
+      const primary = aNewer ? a : b, secondary = aNewer ? b : a;
+      const delLists = mergeTomb(a.deletedLists, b.deletedLists);
+      const delTasks = mergeTomb(a.deletedTasks, b.deletedTasks);
+      const rMap = new Map();
+      (secondary.routines || []).forEach(r => rMap.set(r.id, Object.assign({}, r)));
+      (primary.routines || []).forEach(r => rMap.set(r.id, Object.assign({}, rMap.get(r.id) || {}, r)));
+      Object.keys(delLists).forEach(id => rMap.delete(id));
+      const routines = [...rMap.values()];
+      const names = [];
+      (primary.children || []).forEach(c => { if (names.indexOf(c.name) < 0) names.push(c.name); });
+      (secondary.children || []).forEach(c => { if (names.indexOf(c.name) < 0) names.push(c.name); });
+      const children = names.map(name => {
+        const pc = (primary.children || []).find(c => c.name === name) || {};
+        const sc = (secondary.children || []).find(c => c.name === name) || {};
+        const tasks = {};
+        routines.forEach(r => {
+          const lid = r.id, tMap = new Map();
+          ((sc.tasks && sc.tasks[lid]) || []).forEach(t => tMap.set(t.id, Object.assign({}, t)));
+          ((pc.tasks && pc.tasks[lid]) || []).forEach(t => tMap.set(t.id, Object.assign({}, tMap.get(t.id) || {}, t)));
+          tasks[lid] = [...tMap.values()].filter(t => !(t.gid && delTasks[t.gid]));
+        });
+        return { name, world: pc.world || sc.world, species: pc.species || sc.species, tasks };
+      });
+      return {
+        routine: primary.routine || secondary.routine,
+        lastReset: primary.lastReset || secondary.lastReset,
+        routines, children,
+        deletedLists: delLists, deletedTasks: delTasks,
+        updatedAt: (a.updatedAt || '') > (b.updatedAt || '') ? a.updatedAt : b.updatedAt
+      };
+    }
+    // Canonical content fingerprint — ignores updatedAt/_src/key order so we only sync
+    // when the actual lists/tasks changed.
+    function sig(s) {
+      s = s || {};
+      const rids = (s.routines || []).map(r => r.id).filter(id => !(s.deletedLists && s.deletedLists[id])).sort();
+      const routines = (s.routines || []).map(r => r.id + ':' + (r.name || '') + ':' + (r.active !== false ? 1 : 0)).sort();
+      const kids = (s.children || []).slice().sort((x, y) => x.name < y.name ? -1 : 1).map(c => {
+        const lists = rids.map(lid => {
+          const ts = (((c.tasks || {})[lid]) || []).map(t => t.id + '|' + (t.text || '') + '|' + (t.completed ? 1 : 0) + '|' + (t.gid || '')).sort();
+          return lid + '=' + ts.join(',');
+        });
+        return c.name + ':' + (c.world || '') + ':' + (c.species || '') + '{' + lists.join(';') + '}';
+      });
+      return routines.join('#') + '||' + kids.join('#') + '||' +
+        Object.keys(s.deletedLists || {}).sort().join(',') + '||' +
+        Object.keys(s.deletedTasks || {}).sort().join(',') + '||' + (s.routine || '');
     }
 
     function todayStockholm() {
@@ -667,6 +756,7 @@
         del.textContent = '✕';
         del.setAttribute('aria-label', 'Ta bort');
         del.addEventListener('click', () => {
+          if (g.gid) data.deletedTasks[g.gid] = new Date().toISOString();
           data.children.forEach(ch => {
             const arr = ch.tasks[adminListId] || [];
             for (let i = arr.length - 1; i >= 0; i--) if (arr[i].gid === g.gid) arr.splice(i, 1);
@@ -742,6 +832,7 @@
       const r = data.routines.find(x => x.id === adminListId);
       if (!r) return;
       if (!confirm('Ta bort listan "' + r.name + '" och alla dess uppgifter?')) return;
+      data.deletedLists[adminListId] = new Date().toISOString();
       data.routines = data.routines.filter(x => x.id !== adminListId);
       data.children.forEach(ch => { delete ch.tasks[adminListId]; });
       if (data.routine === adminListId) data.routine = data.routines[0].id;
