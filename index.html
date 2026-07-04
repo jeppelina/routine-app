@@ -1011,7 +1011,7 @@
     }
 
     // ---- daily gadget pool + deterministic pick ----
-    const GADGET_POOL = ['sword','hammer','staff','shield','jetpack','cape','magic','electricity','drone'];
+    const GADGET_POOL = ['sword','hammer','staff','shield','jetpack','cape','magic','electricity','drone','dog','rc'];
     function petHash(str){ let h=1779033703^str.length; for(let i=0;i<str.length;i++){ h=Math.imul(h^str.charCodeAt(i),3432918353); h=h<<13|h>>>19; } return h>>>0; }
     function mulberry32(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
     function dailyGadget(name){
@@ -1101,6 +1101,36 @@
     const _lo = document.createElement('canvas'); _lo.width = CREW; _lo.height = CREH;
     const _lctx = _lo.getContext('2d'); _lctx.imageSmoothingEnabled = false;
 
+    // ---- companions that follow (dog / RC car) ----
+    const CW = 44, CH = 30, cGround = 26;
+    const _clo = document.createElement('canvas'); _clo.width = CW; _clo.height = CH;
+    const _cctx = _clo.getContext('2d'); _cctx.imageSmoothingEnabled = false;
+    function cNewG(){ const g=[]; for(let y=0;y<CH;y++) g.push(new Array(CW).fill(null)); return g; }
+    function cEll(g,cx,cy,rx,ry,c){ for(let y=0;y<CH;y++)for(let x=0;x<CW;x++) if(((x+0.5-cx)/rx)**2+((y+0.5-cy)/ry)**2<=1) g[y][x]=c; }
+    function cRect(g,x0,y0,x1,y1,c){ for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++) if(y>=0&&y<CH&&x>=0&&x<CW) g[y][x]=c; }
+    function buildDog(f){
+      const g=cNewG(), O='#3A2A1E', B='#B98A5C', D='#9A6E42', L='#E4D0B0';
+      const lp=Math.floor(f/6)%2, lift=[lp?0:2,lp?2:0,lp?2:0,lp?0:2], lx=[9,13,23,27];
+      for(let i=0;i<4;i++){ cRect(g,lx[i],20-lift[i],lx[i]+1,cGround,i<2?D:B); cRect(g,lx[i],20-lift[i],lx[i],cGround,O); }
+      const w=Math.round(Math.sin(f/6)*2); cEll(g,5,13+w,3.5,2.5,B); cEll(g,3,11+w,2,2,B);
+      cEll(g,18,16,10.5,6.5,O); cEll(g,18,16,9.5,5.5,B); cEll(g,19,18,6,3,L);
+      cEll(g,30,13,6.5,6,O); cEll(g,30,13,5.5,5,B);
+      cRect(g,34,13,37,16,B); cRect(g,34,16,37,16,O); g[13][37]=O;
+      cRect(g,26,6,28,11,D); cRect(g,26,6,26,11,O);
+      g[12][31]=O; g[16][36]=O;
+      return g;
+    }
+    function buildCar(f){
+      const g=cNewG(), O='#2A211A', R1='#C4402F', R2='#8E2C20', W='#BEDCE8', BLK='#26262A';
+      cRect(g,6,15,34,21,R1); cRect(g,6,20,34,21,R2); cRect(g,6,14,34,14,O);
+      cRect(g,13,9,26,15,R1); cRect(g,14,10,25,13,W); cRect(g,13,9,26,9,O);
+      cEll(g,13,22,4.2,4.2,BLK); cEll(g,26,22,4.2,4.2,BLK); cEll(g,13,22,1.6,1.6,'#8A8A90'); cEll(g,26,22,1.6,1.6,'#8A8A90');
+      const sp=Math.floor(f/3)%2; if(sp){ g[22][13]='#6A6A70'; g[22][26]='#6A6A70'; } else { g[20][13]='#6A6A70'; g[20][26]='#6A6A70'; }
+      const aw=Math.round(Math.sin(f/7)*2); cRect(g,32,6,32,14,O); g[5][32+aw]='#C4402F'; g[4][32+aw]='#C4402F';
+      g[17][35]='#F0D060';
+      return g;
+    }
+
     function makeController(i, canvas){
       const ctx = canvas.getContext('2d');
       ctx.imageSmoothingEnabled = false;
@@ -1111,6 +1141,7 @@
         i, canvas, ctx, wlo, wctx,
         world: null, cssW: 0, cssH: 0, scale: 1,
         posX: SCENE_W/2, dir: 1, hopT: 0, nextHop: 120 + Math.floor(Math.random()*120),
+        moving: false, moveT: 0, idleT: 60 + Math.floor(Math.random()*180), compX: SCENE_W/2 - 30,
         onLedge: false, frame: Math.floor(Math.random()*200)
       };
       ctl.redrawWorld = function(){
@@ -1177,7 +1208,9 @@
       const species = child.species || 'kanin';
       const stageI = Math.max(0, Math.min(2, stageForChild(child)));
       const st = STAGES[stageI];
-      const gadget = st.att ? dailyGadget(child.name) : null;
+      const rawGadget = st.att ? dailyGadget(child.name) : null;
+      const isCompanion = rawGadget === 'dog' || rawGadget === 'rc';
+      const gadget = isCompanion ? null : rawGadget;
 
       // motion: wander left/right within scene
       const ledge = LEDGES[c.world];
@@ -1185,11 +1218,19 @@
       const br = Math.sin(f/34), sy = 1 + br*0.03, sx = 1 - br*0.02;
       const blink = (f % 190) < 6;
       let footL=0, footR=0, bob=0;
-      c.posX += c.dir * 0.55;
-      if (c.posX > SCENE_W - margin) { c.posX = SCENE_W - margin; c.dir = -1; }
-      if (c.posX < margin) { c.posX = margin; c.dir = 1; }
-      const wp = Math.floor(f/6) % 2; footL = wp===0?1:0; footR = wp===1?1:0;
-      bob = (Math.floor(f/6)%2===0) ? R : 0;
+      // motion state machine: idle most of the time, then a short move burst
+      if (c.moving) {
+        c.moveT--;
+        c.posX += c.dir * 0.6;
+        if (c.posX > SCENE_W - margin) { c.posX = SCENE_W - margin; c.dir = -1; }
+        if (c.posX < margin) { c.posX = margin; c.dir = 1; }
+        const wp = Math.floor(f/6) % 2; footL = wp===0?1:0; footR = wp===1?1:0;
+        bob = (Math.floor(f/6)%2===0) ? R : 0;
+        if (c.moveT <= 0) { c.moving = false; c.idleT = 150 + Math.floor(Math.random()*300); }
+      } else {
+        c.idleT--;
+        if (c.idleT <= 0) { c.moving = true; c.moveT = 24 + Math.floor(Math.random()*70); if (Math.random() < 0.5) c.dir = -c.dir; }
+      }
 
       // occasional hop (only when not already hopping)
       if (c.hopT === 0) { c.nextHop--; if (c.nextHop <= 0) { c.hopT = 26; c.nextHop = 160 + Math.floor(Math.random()*160); } }
@@ -1241,6 +1282,23 @@
       const dw = Math.round(sw * sX), dh = Math.round(sh * sY);
       ctx.drawImage(_lo, 0,0,CREW,CREH, Math.round(-dw/2), Math.round(topScene * sY), dw, dh);
       ctx.restore();
+
+      // companion (dog / RC car) trails behind the pet on the ground
+      if (isCompanion) {
+        const target = c.posX - (c.moving ? c.dir : 1) * 30;
+        c.compX += (target - c.compX) * 0.08;
+        const cg = rawGadget === 'dog' ? buildDog(f) : buildCar(f);
+        _cctx.clearRect(0,0,CW,CH);
+        for (let y=0;y<CH;y++) for (let x=0;x<CW;x++) if (cg[y][x]) { _cctx.fillStyle = cg[y][x]; _cctx.fillRect(x,y,1,1); }
+        const compScale = 0.5, cdw = Math.round(CW*compScale*sX), cdh = Math.round(CH*compScale*sY);
+        ctx.fillStyle = 'rgba(45,42,34,0.14)';
+        ctx.beginPath(); ctx.ellipse(c.compX*sX, (GROUND_Y+1)*sY, 7*sX, 1.8*sY, 0, 0, Math.PI*2); ctx.fill();
+        const cflip = c.moving && c.dir < 0;
+        ctx.save(); ctx.imageSmoothingEnabled = false;
+        ctx.translate(Math.round(c.compX * sX), 0); ctx.scale(cflip ? -1 : 1, 1);
+        ctx.drawImage(_clo, 0,0,CW,CH, Math.round(-cdw/2), Math.round((GROUND_Y - cGround*compScale) * sY), cdw, cdh);
+        ctx.restore();
+      }
     }
 
     function petLoop(){
