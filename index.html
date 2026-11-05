@@ -541,6 +541,7 @@
         applyThemeForRoutine();
         renderRoutineTabs();
         render();
+        migrateSpecies();
       }
       if (addsToCloud) pushRemote(merged);
     }
@@ -584,7 +585,8 @@
           ((pc.tasks && pc.tasks[lid]) || []).forEach(t => tMap.set(t.id, Object.assign({}, tMap.get(t.id) || {}, t)));
           tasks[lid] = [...tMap.values()].filter(t => !(t.gid && delTasks[t.gid]));
         });
-        return { name, world: pc.world || sc.world, species: pc.species || sc.species, tasks };
+        const spSrc = pc.species ? pc : sc; // species + its 'chosen' mark travel together
+        return { name, world: pc.world || sc.world, species: spSrc.species, speciesSet: !!spSrc.speciesSet, tasks };
       });
       return {
         routine: primary.routine || secondary.routine,
@@ -605,7 +607,7 @@
           const ts = (((c.tasks || {})[lid]) || []).map(t => t.id + '|' + (t.text || '') + '|' + (t.completed ? 1 : 0) + '|' + (t.gid || '')).sort();
           return lid + '=' + ts.join(',');
         });
-        return c.name + ':' + (c.world || '') + ':' + (c.species || '') + '{' + lists.join(';') + '}';
+        return c.name + ':' + (c.world || '') + ':' + (c.species || '') + (c.speciesSet ? '!' : '') + '{' + lists.join(';') + '}';
       });
       return routines.join('#') + '||' + kids.join('#') + '||' +
         Object.keys(s.deletedLists || {}).sort().join(',') + '||' +
@@ -1429,27 +1431,33 @@
       const cur = data.children[i].species;
       const next = SPECIES[(SPECIES.indexOf(cur) + 1) % SPECIES.length];
       data.children[i].species = next;
+      data.children[i].speciesSet = true;
       saveData();
       hopPet(i);
     }
 
-    // One-time switch to the pets the kids picked (Nov 2026). Runs after the first
-    // cloud pull so it lands on the real household data, then syncs to other devices.
-    // Only replaces the old defaults, so a pet chosen later with the paw button sticks.
-    const SPECIES_PICKS = { Teddy: 'hund', Loui: 'varg', Otis: 'leopard' };
+    // Switch each kid to the pet they picked (Nov 2026). Runs after the first cloud
+    // pull so it lands on the real household data. `speciesSet` travels with the
+    // synced data, so a pet chosen later with the paw button sticks, and if an
+    // outdated device ever reverts the pets this quietly re-applies the picks.
+    const SPECIES_PICKS = { teddy: 'hund', loui: 'varg', louie: 'varg', otis: 'leopard' };
+    function pickFor(name){
+      const n = String(name || '').toLowerCase().replace(/[^a-zåäö]/g, '');
+      for (const key in SPECIES_PICKS) if (n.indexOf(key) === 0) return SPECIES_PICKS[key];
+      return null;
+    }
     function migrateSpecies(){
-      const FLAG = 'routineSpeciesPicks_v1';
-      try { if (localStorage.getItem(FLAG)) return; } catch (e) { return; }
       // A still-seeded device never adopted the household (cloud pull failed):
       // saving now would push default data over it, so try again next launch.
       if (data._seeded && syncEnabled()) return;
       let changed = false;
       data.children.forEach(ch => {
-        const want = SPECIES_PICKS[ch.name];
-        if (want && ['kanin', 'rav', 'uggla'].indexOf(ch.species) >= 0) { ch.species = want; changed = true; }
+        if (ch.speciesSet) return;
+        const want = pickFor(ch.name);
+        if (want && ['kanin', 'rav', 'uggla', undefined].indexOf(ch.species) >= 0) ch.species = want;
+        ch.speciesSet = true; changed = true;
       });
-      try { localStorage.setItem(FLAG, '1'); } catch (e) {}
-      if (changed) saveData();
+      if (changed) { saveData(); render(); }
     }
 
     function drawPetFrame(c){
