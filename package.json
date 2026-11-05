@@ -1,0 +1,10 @@
+{
+  "name": "routine-app",
+  "private": true,
+  "description": "Static PWA — no build step. Scripts are just for local demo/iteration.",
+  "scripts": {
+    "dev": "npx --yes live-server@1.2.2 --port=5173 --host=0.0.0.0 --no-browser --ignore=.git,.claude,supabase",
+    "dev:open": "npx --yes live-server@1.2.2 --port=5173 --ignore=.git,.claude,supabase",
+    "serve": "python3 -m http.server 5173"
+  }
+}

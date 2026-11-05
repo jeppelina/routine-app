@@ -391,7 +391,14 @@
     // ===== Supabase sync (shared Familje-Mello project) =====
     // Cross-device sync. If the (free) project auto-pauses or is unreachable,
     // the app silently falls back to localStorage and re-syncs when it returns.
-    const CLOUD_SYNC = true;
+    // Local dev (localhost / LAN IP / file://) runs offline on localStorage so
+    // tinkering never touches the family's real household. Add ?sync=1 to the
+    // URL to opt back in to live sync while developing.
+    const IS_LOCAL_DEV = location.protocol === 'file:' ||
+      /^(localhost|127\.0\.0\.1|\[::1\]|0\.0\.0\.0|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)$/.test(location.hostname) ||
+      location.hostname.endsWith('.local');
+    const CLOUD_SYNC = !IS_LOCAL_DEV || new URLSearchParams(location.search).get('sync') === '1';
+    if (!CLOUD_SYNC) console.info('[routine-app] Local dev mode: cloud sync OFF (add ?sync=1 to enable).');
     const SUPABASE_URL = 'https://bhurxoknmyfqymtiaycx.supabase.co';
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJodXJ4b2tubXlmcXltdGlheWN4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE5NzI5NTAsImV4cCI6MjA5NzU0ODk1MH0.YbblDF0jfZNzdIMy8rMF3t19b7b6onD91VVLi9N8kYg';
     const HOUSEHOLD_ID = 'c16b0799-e72b-4318-99e1-12661b9f6e02';
