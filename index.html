@@ -89,6 +89,31 @@
       box-shadow: 0 1px 2px rgba(0,0,0,0.08);
     }
 
+    /* ===== Deadline clock (morning routine) ===== */
+    .deadline-clock {
+      display: flex; flex-direction: column; align-items: center;
+      margin: 10px auto -2px; padding: 0 16px;
+    }
+    .deadline-clock[hidden] { display: none; }
+    .deadline-clock svg {
+      width: clamp(200px, 30vw, 310px); height: auto; display: block;
+      filter: drop-shadow(0 3px 8px rgba(58,56,51,0.12));
+    }
+    .deadline-clock.urgent svg { animation: clock-pulse 1s ease-in-out infinite; }
+    @keyframes clock-pulse { 50% { transform: scale(1.03); } }
+    .clock-caption {
+      margin-top: 6px; font-family: var(--serif); font-size: 19px; color: var(--ink);
+      text-align: center; min-height: 1.3em;
+    }
+    .clock-caption b { font-weight: 600; }
+    .clock-face { fill: var(--card); stroke: var(--line); stroke-width: 2.5; }
+    .clock-tick { stroke: var(--faint); stroke-width: 1.2; stroke-linecap: round; }
+    .clock-tick.hour { stroke: var(--ink); stroke-width: 3; }
+    .clock-num { font-family: var(--serif); font-size: 15px; fill: var(--ink); text-anchor: middle; dominant-baseline: central; }
+    .clock-hand { stroke: var(--ink); stroke-linecap: round; }
+    .clock-sec { stroke: #C4553F; stroke-width: 1.6; stroke-linecap: round; }
+    @media (prefers-reduced-motion: reduce) { .deadline-clock.urgent svg { animation: none; } }
+
     #children-container {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -340,6 +365,8 @@
       <div class="routine-toggle" id="routine-toggle"></div>
     </div>
   </header>
+
+  <div id="deadline-clock" class="deadline-clock" hidden aria-live="polite"></div>
 
   <div id="children-container"></div>
 
@@ -1589,6 +1616,7 @@
     }
 
     function render() {
+      updateClock();
       const container = document.getElementById('children-container');
       container.innerHTML = '';
 
@@ -1676,6 +1704,83 @@
         container.appendChild(card);
         refreshPet(childIndex, false);
       });
+    }
+
+    // ===== Deadline clock: shown on the morning list, counts down to leaving time =====
+    const DEADLINE = { h: 7, m: 45 };
+    const DEADLINE_LABEL = DEADLINE.h + ':' + String(DEADLINE.m).padStart(2, '0');
+    const clockEl = document.getElementById('deadline-clock');
+    let clockParts = null, clockTimer = null;
+    function polar(deg, r) { const a = (deg - 90) * Math.PI / 180; return [r * Math.cos(a), r * Math.sin(a)]; }
+    function buildClock() {
+      const NS = 'http://www.w3.org/2000/svg';
+      let ticks = '', nums = '';
+      for (let i = 0; i < 60; i++) {
+        const hour = i % 5 === 0, [x1, y1] = polar(i * 6, hour ? 80 : 84), [x2, y2] = polar(i * 6, 90);
+        ticks += `<line class="clock-tick${hour ? ' hour' : ''}" x1="${x1.toFixed(2)}" y1="${y1.toFixed(2)}" x2="${x2.toFixed(2)}" y2="${y2.toFixed(2)}"/>`;
+      }
+      for (let n = 1; n <= 12; n++) { const [x, y] = polar(n * 30, 67); nums += `<text class="clock-num" x="${x.toFixed(2)}" y="${y.toFixed(2)}">${n}</text>`; }
+      const [mx, my] = polar(DEADLINE.m * 6, 101);
+      clockEl.innerHTML =
+        `<svg viewBox="-116 -110 232 220" role="img" aria-label="Klocka, klart senast ${DEADLINE_LABEL}" xmlns="${NS}">
+          <circle class="clock-face" r="96"/>
+          <path class="clock-wedge" d="" opacity="0.55"/>
+          ${ticks}${nums}
+          <line class="clock-hand hour" stroke-width="6.5" x1="0" y1="0" x2="0" y2="0"/>
+          <line class="clock-hand min" stroke-width="4" x1="0" y1="0" x2="0" y2="0"/>
+          <line class="clock-sec" x1="0" y1="0" x2="0" y2="0"/>
+          <circle r="5" fill="var(--ink)"/><circle r="2" fill="#C4553F"/>
+          <g transform="translate(${mx.toFixed(2)} ${my.toFixed(2)})">
+            <circle r="15" fill="#C4553F" stroke="var(--card)" stroke-width="2.5"/>
+            <text text-anchor="middle" dominant-baseline="central" font-size="16" y="1">🎒</text>
+          </g>
+        </svg>
+        <div class="clock-caption"></div>`;
+      const q = (sel) => clockEl.querySelector(sel);
+      clockParts = { wedge: q('.clock-wedge'), hour: q('.clock-hand.hour'), min: q('.clock-hand.min'), sec: q('.clock-sec'), caption: q('.clock-caption') };
+    }
+    function setHand(el, deg, len, tail) {
+      const [x2, y2] = polar(deg, len), [x1, y1] = polar(deg + 180, tail);
+      el.setAttribute('x1', x1.toFixed(2)); el.setAttribute('y1', y1.toFixed(2));
+      el.setAttribute('x2', x2.toFixed(2)); el.setAttribute('y2', y2.toFixed(2));
+    }
+    function tickClock() {
+      if (!clockParts) return;
+      const now = new Date();
+      const s = now.getSeconds() + now.getMilliseconds() / 1000, m = now.getMinutes() + s / 60, h = (now.getHours() % 12) + m / 60;
+      setHand(clockParts.hour, h * 30, 46, 8);
+      setHand(clockParts.min, m * 6, 74, 10);
+      setHand(clockParts.sec, s * 6, 82, 14);
+      const deadline = new Date(now); deadline.setHours(DEADLINE.h, DEADLINE.m, 0, 0);
+      const left = (deadline - now) / 60000; // minutes
+      let wedge = '', color = '', caption, urgent = false;
+      if (left > 0 && left <= 60) {
+        // Time Timer style slice: from the minute hand forward to the deadline minute
+        const a0 = m * 6, a1 = a0 + left * 6, [x0, y0] = polar(a0, 88), [x1, y1] = polar(a1, 88);
+        wedge = `M0 0 L${x0.toFixed(2)} ${y0.toFixed(2)} A88 88 0 ${left > 30 ? 1 : 0} 1 ${x1.toFixed(2)} ${y1.toFixed(2)} Z`;
+        color = left > 15 ? '#7FB07A' : left > 5 ? '#E3B04F' : '#D9604A';
+        urgent = left <= 5;
+        const mins = Math.ceil(left);
+        caption = `<b>${mins} min</b> kvar till ${DEADLINE_LABEL}`;
+      } else if (left <= 0 && left > -105) {
+        caption = '<b>Dags att gå!</b> 🎒';
+      } else {
+        caption = `Klart senast <b>${DEADLINE_LABEL}</b>`;
+      }
+      clockParts.wedge.setAttribute('d', wedge);
+      if (color) clockParts.wedge.setAttribute('fill', color);
+      clockEl.classList.toggle('urgent', urgent);
+      if (clockParts.caption.innerHTML !== caption) clockParts.caption.innerHTML = caption;
+    }
+    function updateClock() {
+      const r = data.routines.find(x => x.id === data.routine);
+      const show = !!r && /morgon|morning/i.test((r.name || '') + ' ' + r.id);
+      clockEl.hidden = !show;
+      if (show) {
+        if (!clockParts) buildClock();
+        tickClock();
+        if (!clockTimer) clockTimer = setInterval(tickClock, 1000);
+      } else if (clockTimer) { clearInterval(clockTimer); clockTimer = null; }
     }
 
     function renderRoutineTabs() {
