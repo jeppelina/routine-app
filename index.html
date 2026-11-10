@@ -292,6 +292,11 @@
     .admin-add { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; border-top: 1px solid var(--line); padding-top: 14px; }
     .admin-add input { flex: 1 1 160px; min-width: 0; padding: 10px; border: 1px solid var(--line); border-radius: 10px; font-size: 15px; font-family: var(--sans); color: var(--ink); background: #fff; }
     .admin-add-who { display: flex; gap: 5px; }
+    .admin-upgrades { display: flex; flex-direction: column; gap: 10px; border-top: 1px solid var(--line); padding-top: 14px; margin-top: 18px; }
+    .admin-upgrade { display: flex; align-items: center; gap: 12px; }
+    .admin-upgrade canvas { width: 64px; height: 62px; image-rendering: pixelated; background: var(--task-bg); border-radius: 10px; flex-shrink: 0; }
+    .admin-upgrade-name { font-family: var(--serif); font-size: 17px; min-width: 52px; }
+    .admin-upgrade select { flex: 1; min-width: 0; padding: 9px 10px; border: 1px solid var(--line); border-radius: 10px; font-size: 15px; font-family: var(--sans); color: var(--ink); background: #fff; }
     .admin-add-btn { background: var(--accent); color: #FBFAF6; border: 0; border-radius: 10px; padding: 10px 16px; font-size: 14px; cursor: pointer; }
 
     .reset-container { text-align: center; margin: 22px 0 28px; }
@@ -404,6 +409,10 @@
         <input id="adminNewTask" type="text" placeholder="Ny uppgift…">
         <div class="admin-add-who" id="adminNewWho"></div>
         <button id="adminAddBtn" class="admin-add-btn" type="button">Lägg till</button>
+      </div>
+      <div class="admin-upgrades">
+        <div class="admin-label">Slutuppgradering (när allt är klart)</div>
+        <div id="adminUpgrades" style="display:flex;flex-direction:column;gap:10px"></div>
       </div>
     </div>
   </div>
@@ -613,7 +622,7 @@
           tasks[lid] = [...tMap.values()].filter(t => !(t.gid && delTasks[t.gid]));
         });
         const spSrc = pc.species ? pc : sc; // species + its 'chosen' mark travel together
-        return { name, world: pc.world || sc.world, species: spSrc.species, speciesSet: !!spSrc.speciesSet, tasks };
+        return { name, world: pc.world || sc.world, species: spSrc.species, speciesSet: !!spSrc.speciesSet, upgrade: pc.upgrade || sc.upgrade, tasks };
       });
       return {
         routine: primary.routine || secondary.routine,
@@ -634,7 +643,7 @@
           const ts = (((c.tasks || {})[lid]) || []).map(t => t.id + '|' + (t.text || '') + '|' + (t.completed ? 1 : 0) + '|' + (t.gid || '')).sort();
           return lid + '=' + ts.join(',');
         });
-        return c.name + ':' + (c.world || '') + ':' + (c.species || '') + (c.speciesSet ? '!' : '') + '{' + lists.join(';') + '}';
+        return c.name + ':' + (c.world || '') + ':' + (c.species || '') + (c.speciesSet ? '!' : '') + ':' + (c.upgrade || '') + '{' + lists.join(';') + '}';
       });
       return routines.join('#') + '||' + kids.join('#') + '||' +
         Object.keys(s.deletedLists || {}).sort().join(',') + '||' +
@@ -820,6 +829,45 @@
         p.textContent = ch.name;
         p.addEventListener('click', () => p.classList.toggle('on'));
         whoNew.appendChild(p);
+      });
+
+      renderAdminUpgrades();
+    }
+
+    function drawUpgradePreview(canvas, child, gadget) {
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const g = build(child.species || 'kanin', STAGES[2], { frame: 40, gadget: (gadget === 'dog' || gadget === 'rc') ? null : gadget });
+      for (let y = 0; y < CREH; y++) for (let x = 0; x < CREW; x++) if (g[y][x]) { ctx.fillStyle = g[y][x]; ctx.fillRect(x, y, 1, 1); }
+      if (gadget === 'dog' || gadget === 'rc') { // companion trots beside the pet
+        const cg = gadget === 'dog' ? buildDog(40) : buildCar(40), ox = 2, oy = CREH - CH - 4;
+        for (let y = 0; y < CH; y++) for (let x = 0; x < CW; x++) if (cg[y][x]) { ctx.fillStyle = cg[y][x]; ctx.fillRect(ox + x * 0.6 | 0, oy + y * 0.6 + 12 | 0, 1, 1); }
+      }
+    }
+    function renderAdminUpgrades() {
+      const el = document.getElementById('adminUpgrades');
+      el.innerHTML = '';
+      data.children.forEach(ch => {
+        const row = document.createElement('div');
+        row.className = 'admin-upgrade';
+        const cv = document.createElement('canvas');
+        cv.width = CREW; cv.height = CREH;
+        const name = document.createElement('div');
+        name.className = 'admin-upgrade-name';
+        name.textContent = ch.name;
+        const sel = document.createElement('select');
+        sel.setAttribute('aria-label', 'Slutuppgradering för ' + ch.name);
+        ['random'].concat(GADGET_POOL).forEach(k => {
+          const o = document.createElement('option');
+          o.value = k; o.textContent = GADGET_NAMES[k] || k;
+          sel.appendChild(o);
+        });
+        sel.value = GADGET_POOL.indexOf(ch.upgrade) >= 0 ? ch.upgrade : 'random';
+        const preview = () => drawUpgradePreview(cv, ch, sel.value === 'random' ? null : sel.value);
+        sel.addEventListener('change', () => { ch.upgrade = sel.value; saveData(); preview(); });
+        preview();
+        row.appendChild(cv); row.appendChild(name); row.appendChild(sel);
+        el.appendChild(row);
       });
     }
 
@@ -1087,9 +1135,16 @@
         for(let y=Math.floor(topY);y<=Math.ceil(botY+2);y++){ const tt=(y-topY)/(botY-topY); if(tt<0)continue; const hw=topH+(botH-topH)*Math.min(1,tt);
           for(let x=0;x<CREW;x++){ const rel=x+0.5-cx; const bh=botY+Math.sin(x*0.55+(o.frame||0)/9)*1.7*Math.min(1,tt); if(y<=bh&&Math.abs(rel)<=hw) g[y][x]=(Math.abs(rel)>hw-1.1||y>bh-1.1)?CAPE.dark:CAPE.fill; } }
       }
-      if(o.gadget==='jetpack'){
-        for(const sgn of [-1,1]){ const jx=cx+sgn*bodyRx*0.82; for(let y=Math.round(bodyCy-2);y<=Math.round(bodyCy+bodyRy*0.7);y++) for(let x=Math.round(jx-2);x<=Math.round(jx+2);x++){ if(inEll(x,y,jx,bodyCy+bodyRy*0.35,2.4,bodyRy*0.55)) set(x,y, (x<jx-1||x>jx+1)?JET.dark:JET.metal); }
-          const fy=Math.round(bodyCy+bodyRy*0.9); for(let i=0;i<3;i++){ const c=FIRE[i]; set(Math.round(jx),fy+i,c); if(i<2){set(Math.round(jx)-1,fy+i,c);set(Math.round(jx)+1,fy+i,c);} }
+      if(o.gadget==='jetpack'){ // twin tanks poking out on both sides, flickering flames
+        const tRx=2.3*k, tRy=bodyRy*0.5, tcy=bodyCy+bodyRy*0.12, fl=((o.frame||0)>>2)%2;
+        for(const sgn of [-1,1]){ const jx=cx+sgn*(bodyRx*0.98+tRx*0.35);
+          for(let y=Math.floor(tcy-tRy-1);y<=Math.ceil(tcy+tRy+1);y++) for(let x=Math.floor(jx-tRx-1);x<=Math.ceil(jx+tRx+1);x++){
+            if(!inEll(x,y,jx,tcy,tRx,tRy)) continue;
+            const edge=!inEll(x,y,jx,tcy,tRx-1,tRy-1);
+            set(x,y, edge?STEEL.out : (x+0.5<jx-tRx*0.25 ? JET.metal : (Math.abs(y+0.5-(tcy-tRy*0.35))<1.2?'#C9493A':JET.dark))); }
+          const fy=Math.round(tcy+tRy), fx=Math.round(jx), len=Math.round((3+fl)*k);
+          for(let i=0;i<len;i++){ const t=i/len, w=Math.max(0,Math.round((1-t)*tRx*0.7)), c=FIRE[Math.min(2,Math.floor(t*3))];
+            for(let dx=-w;dx<=w;dx++) set(fx+dx,fy+1+i,c); }
         }
       }
 
@@ -1260,6 +1315,12 @@
     function dailyGadget(name){
       const rnd=mulberry32(petHash(name+'|'+todayStockholm()));
       return GADGET_POOL[Math.floor(rnd()*GADGET_POOL.length)];
+    }
+    // Final-stage upgrade: chosen in Admin per child, or 'random' (default) = new one each day.
+    const GADGET_NAMES = { random:'🎲 Slumpa varje dag', sword:'⚔️ Svärd', hammer:'🔨 Hammare', staff:'🔮 Trollstav', shield:'🛡️ Sköld',
+      jetpack:'🚀 Jetpack', cape:'🦸 Mantel', magic:'✨ Magi', electricity:'⚡ Blixtar', drone:'🛸 Drönare', dog:'🐕 Hundkompis', rc:'🏎️ Radiobil' };
+    function gadgetFor(child){
+      return GADGET_POOL.indexOf(child.upgrade) >= 0 ? child.upgrade : dailyGadget(child.name);
     }
 
     // ===== Pixel worlds (muted backdrops + one raised ledge each) =====
@@ -1496,7 +1557,7 @@
       const species = child.species || 'kanin';
       const stageI = Math.max(0, Math.min(2, stageForChild(child)));
       const st = STAGES[stageI];
-      const rawGadget = st.att ? dailyGadget(child.name) : null;
+      const rawGadget = st.att ? gadgetFor(child) : null;
       const isCompanion = rawGadget === 'dog' || rawGadget === 'rc';
       const gadget = isCompanion ? null : rawGadget;
 
