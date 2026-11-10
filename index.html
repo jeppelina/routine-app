@@ -257,6 +257,14 @@
       transition: background 0.2s;
     }
     .world-swap:hover { background: rgba(255,255,255,0.5); }
+    .pet-canvas { cursor: pointer; }
+    .child-card { position: relative; }
+    .child-card.evolving { z-index: 20; box-shadow: 0 0 0 100vmax rgba(30,28,24,0.32); transition: box-shadow 0.5s; }
+    .progress-fill.flash { animation: barflash 0.7s ease-out; }
+    @keyframes barflash { 30% { filter: brightness(1.7) saturate(1.3); box-shadow: 0 0 12px var(--accent); } }
+    .confetti { position: fixed; inset: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 60; }
+    .admin-sound { display: flex; align-items: center; gap: 8px; font-size: 15px; color: var(--ink); cursor: pointer; }
+    .admin-sound input { width: 18px; height: 18px; accent-color: var(--accent); }
     .pet-swap { right: 46px; }
 
     .admin {
@@ -413,6 +421,8 @@
       <div class="admin-upgrades">
         <div class="admin-label">Slutuppgradering (när allt är klart)</div>
         <div id="adminUpgrades" style="display:flex;flex-direction:column;gap:10px"></div>
+        <div class="admin-label" style="margin-top:8px">Ljud</div>
+        <label class="admin-sound"><input type="checkbox" id="adminSound"> Ljudeffekter på den här enheten</label>
       </div>
     </div>
   </div>
@@ -832,7 +842,13 @@
       });
 
       renderAdminUpgrades();
+      document.getElementById('adminSound').checked = soundOn;
     }
+    document.getElementById('adminSound').addEventListener('change', (e) => {
+      soundOn = e.target.checked;
+      try { localStorage.setItem('routineSound', soundOn ? '1' : '0'); } catch (err) {}
+      if (soundOn) { const a = audioGet(); if (a) a.resume().then(() => sfx('chime')).catch(() => {}); }
+    });
 
     function drawUpgradePreview(canvas, child, gadget) {
       const ctx = canvas.getContext('2d');
@@ -1039,7 +1055,7 @@
 
     // ===== Pixel-art pet engine (ported from sprite-lab) =====
     const R = 2;
-    const CREW = 108, CREH = 104, ccx = 54, cgy = 92;
+    const CREW = 140, CREH = 104, ccx = 70, cgy = 92; // wide enough for swung tools
 
     const PALS = {
       kanin: { out:'#3B302A', body:'#C7AC88', light:'#DCC4A0', dark:'#AE926B', belly:'#ECDDC4', ear:'#DBA791', eye:'#2E2723', cheek:'#E0A187', foot:'#AE926B' },
@@ -1079,7 +1095,8 @@
       const sx=o.sx||1, sy=o.sy||1, k=st.sc*R, att=st.att, ek=st.earScale;
       const P=(isWolf&&att)?PALS.varulv:PALS[species];
       const rr=(n)=>Math.round(n*R);
-      const g=[]; for(let y=0;y<CREH;y++) g.push(new Array(CREW).fill(null));
+      const newGrid=()=>{ const a=[]; for(let y=0;y<CREH;y++) a.push(new Array(CREW).fill(null)); return a; };
+      let g=newGrid();
       const set=(x,y,c)=>{ if(y>=0&&y<CREH&&x>=0&&x<CREW)g[y][x]=c; };
       const setIf=(x,y,c)=>{ if(y>=0&&y<CREH&&x>=0&&x<CREW&&g[y][x])g[y][x]=c; };
 
@@ -1093,10 +1110,23 @@
       // Pixel-art curl texture (cavapoo coat): short diagonal flecks on a fixed lattice.
       const curlAt=(x,y)=>((x*3+y*5)%11===0)||((x*3+y*5)%11===1&&y%2===0);
 
-      const topP={x:cx-bodyRx*0.72,y:bodyCy-bodyRy*0.5}, botP={x:cx+bodyRx*1.30,y:bodyCy+bodyRy*0.92};
-      const dlen=Math.hypot(botP.x-topP.x,botP.y-topP.y), dx=(botP.x-topP.x)/dlen, dy=(botP.y-topP.y)/dlen;
-      const gLen=(o.gadget==='hammer'||o.gadget==='staff')?9:11;
-      const gEnd={x:topP.x-dx*gLen*k,y:topP.y-dy*gLen*k}; const px=-dy,py=dx;
+      let topP={x:cx-bodyRx*0.72,y:bodyCy-bodyRy*0.5}, botP={x:cx+bodyRx*1.30,y:bodyCy+bodyRy*0.92};
+      let dlen=Math.hypot(botP.x-topP.x,botP.y-topP.y), dx=(botP.x-topP.x)/dlen, dy=(botP.y-topP.y)/dlen;
+      let gLen=(o.gadget==='hammer'||o.gadget==='staff')?9:11;
+      let gEnd={x:topP.x-dx*gLen*k,y:topP.y-dy*gLen*k}; let px=-dy,py=dx;
+      // Held pose (actions): the tool pivots around a paw at the pet's side, angle 0 = straight up,
+      // and is drawn in front of the body instead of slung across the back.
+      const held = !!o.tool && (o.gadget==='sword'||o.gadget==='hammer'||o.gadget==='staff');
+      let toolG=null, mainG=null;
+      if(held){
+        const a=o.tool.ang, ux=Math.sin(a), uy=-Math.cos(a);
+        const H={x:cx+bodyRx*0.92+(o.tool.offX||0), y:bodyCy+bodyRy*0.2+(o.tool.offY||0)};
+        if(o.gadget==='sword'){ topP={x:H.x+ux*1.2*k,y:H.y+uy*1.2*k}; botP={x:H.x+ux*13.5*k,y:H.y+uy*13.5*k}; gLen=3.2; }
+        else { const L1=o.gadget==='staff'?11:9, L2=o.gadget==='staff'?5:2.5; topP={x:H.x+ux*L1*k,y:H.y+uy*L1*k}; botP={x:H.x-ux*L2*k,y:H.y-uy*L2*k}; gLen=0; }
+        dlen=Math.hypot(botP.x-topP.x,botP.y-topP.y); dx=(botP.x-topP.x)/dlen; dy=(botP.y-topP.y)/dlen;
+        gEnd={x:topP.x-dx*gLen*k,y:topP.y-dy*gLen*k}; px=-dy; py=dx;
+        mainG=g; toolG=newGrid(); g=toolG;
+      }
 
       function backLine(colFn,halfMax,taper){
         for(let y=0;y<CREH;y++) for(let x=0;x<CREW;x++){
@@ -1127,13 +1157,16 @@
         const ox=gEnd.x-dx*4*k, oy=gEnd.y-dy*4*k, r=6*k, pulse=(Math.sin((o.frame||0)/8)+1)/2;
         for(let y=0;y<CREH;y++) for(let x=0;x<CREW;x++){
           if(inEll(x,y,ox,oy,r,r)){ let c=CRYSTAL; if(inEll(x,y,ox-r*0.28,oy-r*0.28,r*0.5,r*0.5)) c=CRYSTALL; if(!inEll(x,y,ox,oy,r-1,r-1)) c=CRYSTAL_D; set(x,y,c); }
-          else if(pulse>0.55 && inEll(x,y,ox,oy,r+1.6,r+1.6)) set(x,y,CRYSTAL);
+          else if((pulse>0.55||o.orb>0.25) && inEll(x,y,ox,oy,r+1.6+(o.orb||0)*2.2,r+1.6+(o.orb||0)*2.2)) set(x,y,(o.orb||0)>0.9?'#FFF7C2':CRYSTAL);
         }
+        if((o.orb||0)>1) for(let y=0;y<CREH;y++) for(let x=0;x<CREW;x++){ if(inEll(x,y,ox,oy,r*0.55,r*0.55)) set(x,y,'#FFFFFF'); }
       }
+      if(held){ g=mainG; } // tool is composited on top at the end
       if(o.gadget==='cape'){
-        const topY=bodyCy-bodyRy*0.35, botY=bodyCy+bodyRy*1.18, topH=bodyRx*0.5, botH=bodyRx*1.18;
+        const sp=o.capeSpread||0, wind=o.capeWind?2.2:1;
+        const topY=bodyCy-bodyRy*0.35, botY=bodyCy+bodyRy*(1.18-0.6*sp), topH=bodyRx*(0.5+0.3*sp), botH=bodyRx*(1.18+1.25*sp);
         for(let y=Math.floor(topY);y<=Math.ceil(botY+2);y++){ const tt=(y-topY)/(botY-topY); if(tt<0)continue; const hw=topH+(botH-topH)*Math.min(1,tt);
-          for(let x=0;x<CREW;x++){ const rel=x+0.5-cx; const bh=botY+Math.sin(x*0.55+(o.frame||0)/9)*1.7*Math.min(1,tt); if(y<=bh&&Math.abs(rel)<=hw) g[y][x]=(Math.abs(rel)>hw-1.1||y>bh-1.1)?CAPE.dark:CAPE.fill; } }
+          for(let x=0;x<CREW;x++){ const rel=x+0.5-cx; const bh=botY+Math.sin(x*0.55+(o.frame||0)/9*wind)*(1.7+sp*1.6)*Math.min(1,tt); if(y<=bh&&Math.abs(rel)<=hw) g[y][x]=(Math.abs(rel)>hw-1.1||y>bh-1.1)?CAPE.dark:CAPE.fill; } }
       }
       function drawJetpack(){ // twin tanks poking out on both sides, flickering flames (longer in flight)
         const tRx=2.3*k, tRy=bodyRy*0.5, tcy=bodyCy+bodyRy*0.12, fl=((o.frame||0)>>(o.thrust?1:2))%2;
@@ -1151,7 +1184,7 @@
       if(o.gadget==='jetpack' && !isDog) drawJetpack();
 
       if(isDog){ // short feathery tail, wagging
-        const wag=Math.sin((o.frame||0)/5)*1.3*k, tx=cx+bodyRx*0.98, ty=bodyCy+bodyRy*0.38;
+        const wag=Math.sin((o.frame||0)/(o.wagFast?1.8:5))*1.3*k, tx=cx+bodyRx*0.98, ty=bodyCy+bodyRy*0.38;
         const tSolid=(x,y)=>inEll(x,y,tx,ty,2.5*k,2.1*k)||inEll(x,y,tx+rr(1.5)+wag*0.4,ty-rr(2.5),2.2*k,2.0*k)||inEll(x,y,tx+rr(2)+wag,ty-rr(4.5),1.9*k,1.9*k);
         for(let y=0;y<CREH;y++) for(let x=0;x<CREW;x++){ if(!tSolid(x,y)) continue;
           const border=!tSolid(x-1,y)||!tSolid(x+1,y)||!tSolid(x,y-1)||!tSolid(x,y+1);
@@ -1197,6 +1230,13 @@
       }
 
       const isCoat=(c)=>c===P.body||c===P.light||c===P.dark;
+      if(o.charge>0){ // fur stands on end while charging
+        const pts=[];
+        for(let y=1;y<CREH-1;y++) for(let x=1;x<CREW-1;x++){ if(g[y][x]!==P.out||!inEll(x,y,cx,bodyCy,bodyRx+1,bodyRy+1)) continue;
+          const h=(((x*73856093)^(y*19349663))>>>0)%100; if(h/100<o.charge*0.32) pts.push([x,y]); }
+        for(const [x,y] of pts){ const vx=x+0.5-cx, vy=y+0.5-bodyCy, L=Math.hypot(vx,vy)||1, len=1+Math.round(o.charge*2.6);
+          for(let i=1;i<=len;i++) set(Math.round(x+vx/L*i),Math.round(y+vy/L*i),(i===len&&((o.frame||0)>>1)%2)?'#F6D85A':P.out); }
+      }
       if(isDog){ // curly coat
         for(let y=0;y<CREH;y++) for(let x=0;x<CREW;x++){ const c=g[y][x]; if(!curlAt(x,y)) continue;
           if(isCoat(c)) g[y][x]=P.curl; else if(c===P.belly) g[y][x]=P.curlL; }
@@ -1267,7 +1307,8 @@
         if(isDog){ setIf(cx,m+2,P.tongue); setIf(cx+1,m+2,P.tongue); setIf(cx,m+3,P.tongue); setIf(cx+1,m+3,P.tongue); }
         if(isWolf&&att){ setIf(cx-e+1,m+2,'#FFFFFF'); setIf(cx-e+1,m+3,'#FFFFFF'); setIf(cx+e-1,m+2,'#FFFFFF'); setIf(cx+e-1,m+3,'#FFFFFF'); }
         if(att){ setIf(cx-e,m+1,P.out); setIf(cx-Math.round(e*0.5),m,P.out); setIf(cx,m,P.out); setIf(cx+Math.round(e*0.5),m,P.out); setIf(cx+e,m+1,P.out); setIf(cx-rr(1),m+2,'#FFFFFF'); }
-        else { setIf(cx-e,m,P.out); setIf(cx-Math.round(e*0.5),m+1,P.out); setIf(cx,m+1,P.out); setIf(cx+Math.round(e*0.5),m+1,P.out); setIf(cx+e,m,P.out); } }
+        else { setIf(cx-e,m,P.out); setIf(cx-Math.round(e*0.5),m+1,P.out); setIf(cx,m+1,P.out); setIf(cx+Math.round(e*0.5),m+1,P.out); setIf(cx+e,m,P.out); }
+        if(o.howl){ for(let y=m-1;y<=m+rr(2.5);y++) for(let x=cx-rr(1.5);x<=cx+rr(1.5);x++){ if(inEll(x,y,cx,m+rr(0.8),rr(1.4),rr(1.8))) setIf(x,y,inEll(x,y,cx,m+rr(1.2),rr(0.7),rr(0.9))?'#B5485A':P.out); } } }
 
       if(att && (isRabbit||isFox)){
         for(const sgn of [-1,1]){ const hx=cx+sgn*rr(3), len=Math.round(5*R); for(let i=0;i<len;i++){ const hy=Math.round(earCy+rr(2)-i*1.3), hxx=hx+sgn*Math.round(i*0.55); set(hxx,hy,HORN); set(hxx+sgn,hy,HORN_D); set(hxx,hy+1,HORN_D);} }
@@ -1291,23 +1332,24 @@
 
       if(o.gadget==='cape'){ const ny=Math.round(bodyCy+bodyRy*0.28); setIf(cx-1,ny,CAPE.dark); setIf(cx,ny,CAPE.clasp); setIf(cx+1,ny,CAPE.dark); }
       if(o.gadget==='shield'){
-        const shx=cx-bodyRx*0.95, shy=bodyCy+bodyRy*0.12, r=5.2*k;
+        const su=o.shieldUp||0, shx=cx-bodyRx*(0.95+0.3*su), shy=bodyCy+bodyRy*(0.12-0.32*su), r=5.2*k;
         for(let y=0;y<CREH;y++) for(let x=0;x<CREW;x++){ if(inEll(x,y,shx,shy,r,r*1.05)){ let c=SHIELD.face; if(!inEll(x,y,shx,shy,r-1,r*1.05-1)) c=SHIELD.dark; else if(!inEll(x,y,shx,shy,r-1.6,(r-1.6)*1.05)) c=SHIELD.rim; if(inEll(x,y,shx,shy,1.4*k,1.4*k)) c=SHIELD.boss; set(x,y,c);} }
       }
       function star(sxp,syp,c,sz){ const X=Math.round(sxp),Y=Math.round(syp); for(let i=1;i<=sz;i++){ set(X,Y-i,c);set(X,Y+i,c);set(X-i,Y,c);set(X+i,Y,c);} set(X,Y,'#FFFFFF'); }
-      if(o.gadget==='magic'){ const t=(o.frame||0)/22; for(let i=0;i<5;i++){ const a=t+i*1.2566; star(cx+Math.cos(a)*bodyRx*1.2, bodyCy+Math.sin(a)*bodyRy*0.95, i%2?'#E9C879':'#9FE0EC', Math.round(1.3*R)); } }
+      if(o.gadget==='magic'){ const t=o.magicAngle!=null?o.magicAngle:(o.frame||0)/22; for(let i=0;i<5;i++){ const a=t+i*1.2566; star(cx+Math.cos(a)*bodyRx*1.2, bodyCy+Math.sin(a)*bodyRy*0.95, i%2?'#E9C879':'#9FE0EC', Math.round(1.3*R)); } }
       if(o.gadget==='electricity'){
         const bolt=[[0,0],[-2,3],[1.5,4.5],[-1,8],[2.5,9.5],[-0.5,13]];
-        for(const sgn of [-1,1]){ if((((o.frame||0)>>2)+(sgn>0?1:0))%2) continue; const ox=cx+sgn*bodyRx*1.02, oy=bodyCy-bodyRy*0.55;
+        for(const sgn of [-1,1]){ if(!(o.charge>0.5) && (((o.frame||0)>>2)+(sgn>0?1:0))%2) continue; const ox=cx+sgn*bodyRx*1.02, oy=bodyCy-bodyRy*0.55;
           for(let j=0;j<bolt.length-1;j++){ let x1=ox+sgn*bolt[j][0]*R*0.7, y1=oy+bolt[j][1]*R*0.7, x2=ox+sgn*bolt[j+1][0]*R*0.7, y2=oy+bolt[j+1][1]*R*0.7, steps=Math.round(Math.hypot(x2-x1,y2-y1)); for(let s=0;s<=steps;s++){ set(Math.round(x1+(x2-x1)*s/steps),Math.round(y1+(y2-y1)*s/steps), s%3?'#F0C64B':'#FBE7A0'); } } }
       }
-      if(o.gadget==='drone'){
+      if(o.gadget==='drone' && !o.noDrone){
         const dxp=cx, dyp=Math.round(bodyCy-bodyRy-7*R+Math.sin((o.frame||0)/16)*R);
         for(let y=0;y<CREH;y++) for(let x=0;x<CREW;x++){ if(inEll(x,y,dxp,dyp,3.4*R,2*R)) set(x,y,(!inEll(x,y,dxp,dyp,2.4*R,1.2*R))?'#2E2E32':'#4A4A50'); }
         set(dxp,Math.round(dyp),'#8FD16A');
         const rw=(((o.frame||0)>>1)%2)?Math.round(2.4*R):Math.round(3.6*R);
         for(const sgn of [-1,1]){ const rx0=Math.round(dxp+sgn*3.4*R), ry0=Math.round(dyp-2*R); for(let i=0;i<rw;i++){ set(rx0+sgn*i-sgn*Math.round(rw/2),ry0,'#6A6A70'); } set(rx0,ry0-1,'#2E2E32'); }
       }
+      if(toolG){ for(let y=0;y<CREH;y++) for(let x=0;x<CREW;x++) if(toolG[y][x]) g[y][x]=toolG[y][x]; }
       return g;
     }
 
@@ -1420,6 +1462,14 @@
     // pre-created low-res creature buffer (shared, reused each draw)
     const _lo = document.createElement('canvas'); _lo.width = CREW; _lo.height = CREH;
     const _lctx = _lo.getContext('2d'); _lctx.imageSmoothingEnabled = false;
+    // write the colour grid in one go (much cheaper than a fillRect per pixel)
+    const _limg = _lctx.createImageData(CREW, CREH), _rgbCache = {};
+    function hexRGB(h){ let v = _rgbCache[h]; if (!v) { const n = parseInt(h.slice(1), 16); v = _rgbCache[h] = h.length === 4 ? [((n>>8)&15)*17, ((n>>4)&15)*17, (n&15)*17] : [(n>>16)&255, (n>>8)&255, n&255]; } return v; }
+    function blitGrid(grid){
+      const d = _limg.data; d.fill(0);
+      for (let y=0, i=0; y<CREH; y++) { const row = grid[y]; for (let x=0; x<CREW; x++, i+=4) { const c = row[x]; if (c) { const v = hexRGB(c); d[i]=v[0]; d[i+1]=v[1]; d[i+2]=v[2]; d[i+3]=255; } } }
+      _lctx.putImageData(_limg, 0, 0);
+    }
 
     // ---- companions that follow (dog / RC car) ----
     const CW = 44, CH = 30, cGround = 26;
@@ -1462,7 +1512,11 @@
         world: null, cssW: 0, cssH: 0, scale: 1,
         posX: SCENE_W/2, dir: 1, y: GROUND_Y, vy: 0, grounded: true, nextHop: 60 + Math.floor(Math.random()*120),
         moving: false, moveT: 0, idleT: 60 + Math.floor(Math.random()*180), compX: SCENE_W/2 - 30,
-        frame: Math.floor(Math.random()*200)
+        frame: Math.floor(Math.random()*200),
+        // actions / evolution / effects
+        act: null, evo: null, actCool: 150 + Math.floor(Math.random()*150), quirkCool: 500 + Math.floor(Math.random()*700),
+        parts: [], bolts: [], slash: [], rings: [], cracks: [], platGlow: {}, flash: 0, shake: 0, cheer: 0,
+        compY: 0, compVy: 0, compDir: 1, compAng: 0
       };
       ctl.redrawWorld = function(){
         const w = (data.children[i] && data.children[i].world) || 'city';
@@ -1495,7 +1549,10 @@
 
     function hopPet(i){
       const c = petCtl[i];
-      if (c && c.grounded) { c.vy = P_JUMP; c.grounded = false; }
+      if (!c || c.evo) return;
+      if (c.act && c.act.kind !== 'gadget') endAct(c); // a quirk/reaction gives way to the happy hop
+      if (c.act) return;                                 // but don't knock it out of an upgrade move
+      if (c.grounded) { c.vy = P_JUMP; c.grounded = false; }
     }
 
     // repurposed: read stage/species/world live; optionally hop on task tap / evolve
@@ -1505,8 +1562,13 @@
       if (!child) return;
       // stage/species/world are re-read live every frame; this just handles the
       // tap-driven hop and keeps the world buffer in sync.
-      petStage[i] = stageForChild(child);
-      if (animate && c) hopPet(i);
+      const prev = petStage[i], now = stageForChild(child);
+      petStage[i] = now;
+      if (animate && c) {
+        sfx('tick');
+        if (prev != null && now > prev) startEvolution(c, child, prev, now); // grew a stage: celebrate
+        else hopPet(i);
+      }
       if (c) c.redrawWorld();
     }
 
@@ -1552,6 +1614,363 @@
       if (changed) { saveData(); render(); }
     }
 
+    // ===== Pet actions, evolutions & effects =====
+    // Everything here works in scene pixels (SCENE_W x SCENE_H). The sprite buffer is drawn at SPR scale.
+    const SPR = 0.6;
+    function clamp01(t){ return t<0?0:t>1?1:t; }
+    function smooth(t){ t=clamp01(t); return t*t*(3-2*t); }
+    function easeIn3(t){ t=clamp01(t); return t*t*t; }
+    function rand(a,b){ return a+Math.random()*(b-a); }
+    function geomFor(st){ const k=st.sc*R, bodyRy=10.5*k; return { k, bodyRx:10*k, bodyRy, bodyCy:cgy-bodyRy }; }
+    // sprite-buffer point -> scene point (ignores tilt/spin)
+    function toScene(c, bx, by){ return { x: c.posX + (bx-ccx)*SPR*(c.dir<0?-1:1), y: c.y - (cgy-by)*SPR }; }
+    // point L*k along a held tool at angle ang (same geometry as build()'s held pose)
+    function handPoint(c, st, ang, L){ const G=geomFor(st); return toScene(c, ccx+G.bodyRx*0.92+Math.sin(ang)*L*G.k, G.bodyCy+G.bodyRy*0.2-Math.cos(ang)*L*G.k); }
+    function droneHome(c, st){ const G=geomFor(st); return toScene(c, ccx, G.bodyCy-G.bodyRy-7*R); }
+    const WORLD_DUST = { city:'#8E8FA8', jungle:'#8C7A5A', space:'#7C76A8' };
+    const TOOL_REST = -0.35;
+
+    function addPart(c, p){ if (c.parts.length < 240) c.parts.push(Object.assign({ vx:0, vy:0, g:0, drag:1, s:1, shape:'dot', life:30 }, p, { max: p.life || 30 })); }
+    function burst(c, x, y, n, colors, o){ o=o||{};
+      for (let i=0;i<n;i++){ const a=Math.random()*Math.PI*2, v=rand(o.vmin||0.8, o.vmax||2);
+        addPart(c, { x, y, vx:Math.cos(a)*v, vy:Math.sin(a)*v, drag:0.93, g:o.g||0, life:Math.round(rand(24,44)), c:colors[i%colors.length], s:o.s||1.4, shape:o.shape||(i%3?'dot':'star') }); } }
+    function hopSmall(c, v){ if (c.grounded){ c.vy = v || -2.8; c.grounded = false; } }
+    function dust(c, x, y, n, world){ for (let i=0;i<n;i++) addPart(c, { x:x+rand(-4,4), y:y-1, vx:rand(-0.9,0.9), vy:rand(-0.6,-0.1), drag:0.93, life:Math.round(rand(22,36)), c:WORLD_DUST[world]||'#999', s:rand(1.4,2.4), shape:'puff' }); }
+    function flashBar(i){ const el=document.getElementById('fill-'+i); if (!el) return; el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); }
+
+    // ---- sound: tiny WebAudio synth, off by default, per device ----
+    let soundOn = false; try { soundOn = localStorage.getItem('routineSound') === '1'; } catch (e) {}
+    let audioCtx = null, lastInteract = 0;
+    function audioGet(){ if (!audioCtx){ const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return null; try { audioCtx = new AC(); } catch (e) { return null; } } return audioCtx; }
+    document.addEventListener('pointerdown', () => { lastInteract = Date.now(); if (soundOn){ const a = audioGet(); if (a && a.state === 'suspended') a.resume(); } }, true);
+    function sfxTone(a, f, t0, dur, type, vol, fEnd){ const o=a.createOscillator(), gn=a.createGain(); o.type=type||'sine'; o.frequency.setValueAtTime(f,t0); if (fEnd) o.frequency.exponentialRampToValueAtTime(fEnd,t0+dur);
+      gn.gain.setValueAtTime(0.0001,t0); gn.gain.exponentialRampToValueAtTime(vol||0.1,t0+0.012); gn.gain.exponentialRampToValueAtTime(0.0001,t0+dur); o.connect(gn).connect(a.destination); o.start(t0); o.stop(t0+dur+0.03); }
+    function sfxNoise(a, t0, dur, vol, f0, f1, q){ const n=Math.max(1,Math.floor(a.sampleRate*dur)), buf=a.createBuffer(1,n,a.sampleRate), d=buf.getChannelData(0); for (let i=0;i<n;i++) d[i]=Math.random()*2-1;
+      const src=a.createBufferSource(); src.buffer=buf; const bp=a.createBiquadFilter(); bp.type='bandpass'; bp.Q.value=q||1; bp.frequency.setValueAtTime(f0,t0); if (f1) bp.frequency.exponentialRampToValueAtTime(f1,t0+dur);
+      const gn=a.createGain(); gn.gain.setValueAtTime(vol||0.2,t0); gn.gain.exponentialRampToValueAtTime(0.0001,t0+dur); src.connect(bp).connect(gn).connect(a.destination); src.start(t0); src.stop(t0+dur); }
+    // ambient = a pet doing something on its own: only audible if someone touched the app in the last 20 s
+    function sfx(name, ambient){
+      if (!soundOn) return;
+      if (ambient && Date.now() - lastInteract > 20000) return;
+      const a = audioGet(); if (!a || a.state !== 'running') return;
+      const t = a.currentTime + 0.01;
+      try { switch (name) {
+        case 'tick': sfxTone(a,880,t,0.09,'sine',0.09,1320); break;
+        case 'boop': sfxTone(a,520,t,0.12,'sine',0.11,880); break;
+        case 'thud': sfxTone(a,140,t,0.3,'sine',0.32,45); sfxNoise(a,t,0.22,0.22,300,120,0.7); break;
+        case 'zap': sfxNoise(a,t,0.25,0.16,2400,900,2); sfxTone(a,1200,t,0.15,'square',0.035,300); break;
+        case 'swoosh': sfxNoise(a,t,0.2,0.18,500,3000,1.5); break;
+        case 'clonk': sfxTone(a,620,t,0.12,'triangle',0.18); sfxTone(a,930,t+0.01,0.1,'triangle',0.1); break;
+        case 'poof': sfxTone(a,400,t,0.22,'sine',0.09,1600); sfxNoise(a,t,0.15,0.07,3000,6000,1); break;
+        case 'chime': [1047,1319,1568].forEach((f,i)=>sfxTone(a,f,t+i*0.07,0.18,'sine',0.08)); break;
+        case 'evolve': [523,659,784,1047].forEach((f,i)=>sfxTone(a,f,t+i*0.08,0.2,'triangle',0.09)); break;
+        case 'evolveBig': [392,523,659,784,1047,1319].forEach((f,i)=>sfxTone(a,f,t+i*0.09,0.3,'triangle',0.09)); [523,659,784].forEach(f=>sfxTone(a,f,t+0.56,0.8,'sine',0.06)); break;
+        case 'howl': { const o=a.createOscillator(), gn=a.createGain(), lp=a.createBiquadFilter(); o.type='sawtooth'; lp.type='lowpass'; lp.frequency.value=1300;
+          o.frequency.setValueAtTime(320,t); o.frequency.exponentialRampToValueAtTime(640,t+0.5); o.frequency.exponentialRampToValueAtTime(430,t+1.4);
+          gn.gain.setValueAtTime(0.0001,t); gn.gain.exponentialRampToValueAtTime(0.08,t+0.2); gn.gain.exponentialRampToValueAtTime(0.0001,t+1.5); o.connect(lp).connect(gn).connect(a.destination); o.start(t); o.stop(t+1.55); break; }
+        case 'fanfare': [523,659,784,1047,784,1047].forEach((f,i)=>sfxTone(a,f,t+i*0.11,i===5?0.5:0.14,'triangle',0.09)); break;
+        case 'bark': sfxTone(a,480,t,0.08,'square',0.045,320); sfxTone(a,500,t+0.14,0.08,'square',0.045,330); break;
+        case 'vroom': sfxTone(a,90,t,0.6,'sawtooth',0.035,220); break;
+      } } catch (e) {}
+    }
+
+    // ---- actions: final-stage upgrade moves, idle quirks and tap reactions ----
+    // start(c, env) -> state object (or null = not now); step(c, env, a) -> pose for this frame; set a.done to finish.
+    // a.lock pauses wandering/hopping; a.noPhys also pauses gravity (the action moves the pet itself).
+    const ACTIONS = {
+      hammer: { kind:'gadget',
+        start(){ return { lock:true }; },
+        step(c, e, a){ const t=a.t; let ang;
+          if (t<26) ang=lerp(TOOL_REST,-1.35,smooth(t/26));
+          else if (t<40) ang=-1.35+Math.sin(t*1.3)*0.04;
+          else if (t<47) ang=lerp(-1.35,1.95,easeIn3((t-40)/7));
+          else if (t<85) ang=1.95;
+          else ang=lerp(1.95,TOOL_REST,smooth((t-85)/20));
+          if (t===47){ const p=handPoint(c,e.st,1.95,12); c.shake=12; c.cracks.push({ x:p.x, y:c.y, life:160, max:160, seed:Math.random()*99 });
+            for (let i=0;i<14;i++) addPart(c,{ x:p.x+rand(-3,3), y:c.y-1, vx:rand(-1.8,1.8), vy:rand(-1.1,-0.2), drag:0.93, g:0.02, life:Math.round(rand(26,48)), c:WORLD_DUST[e.world], s:rand(1.5,3), shape:'puff' });
+            for (let i=0;i<7;i++) addPart(c,{ x:p.x, y:c.y-1, vx:rand(-1.5,1.5), vy:rand(-2.6,-1.2), g:0.15, life:30, c:'#5A5560', s:1 });
+            sfx('thud', a.ambient); }
+          if (t>=105){ a.done=true; hopSmall(c); }
+          return { tool:{ ang }, sy:(t>=24&&t<40)?0.94:1 };
+        } },
+
+      staff: { kind:'gadget',
+        start(){ return { lock:true }; },
+        step(c, e, a){ const t=a.t; let ang, orb=0;
+          if (t<20) ang=lerp(TOOL_REST,0.08,smooth(t/20));
+          else if (t<150) ang=0.08+Math.sin(t/9)*0.03;
+          else ang=lerp(0.08,TOOL_REST,smooth((t-150)/25));
+          const o=handPoint(c,e.st,ang,15);
+          if (t>=20 && t<110){ orb=(t-20)/90;
+            if (t%2===0){ const an=Math.random()*Math.PI*2, r=rand(22,32), sp=rand(0.8,1.2);
+              addPart(c,{ x:o.x+Math.cos(an)*r, y:o.y+Math.sin(an)*r, vx:-Math.cos(an)*sp, vy:-Math.sin(an)*sp, life:Math.round(r/sp), c:Math.random()<0.5?'#9FE0EC':'#F3E28A', s:1, shape:'spark' }); } }
+          if (t===110){ c.bolts.push({ x0:o.x+rand(-12,12), y0:-4, x1:o.x, y1:o.y, life:18, max:18 }); c.flash=0.55; c.shake=7;
+            burst(c,o.x,o.y,12,['#FFF7C2','#9FE0EC','#F3E28A']); sfx('zap', a.ambient); }
+          if (t>=110 && t<150){ orb=1.3+Math.sin(t*0.8)*0.2;
+            if (t%4===0) addPart(c,{ x:o.x+rand(-4,4), y:o.y+rand(-4,4), vx:rand(-0.6,0.6), vy:rand(-0.6,0.6), life:12, c:'#FFF7C2', s:1, shape:'spark' }); }
+          if (t>=175) a.done=true;
+          return { tool:{ ang }, orb, glowAt: orb>0 ? { x:o.x, y:o.y, r:6+orb*7, a:Math.min(0.6,orb*0.42), rgb:'190,236,246' } : null };
+        } },
+
+      sword: { kind:'gadget',
+        start(c, e){ const a={ lock:true };
+          if (Math.random()<0.65){ const kind=e.world==='jungle'?'leaf':e.world==='space'?'star':'drop';
+            const x=Math.max(10,Math.min(SCENE_W-10,c.posX+c.dir*16)), ty=c.y-20; a.obj={ kind, x, y:-4, vy:(ty+4)/22 }; }
+          return a; },
+        step(c, e, a){ const t=a.t; let ang, sy=1;
+          if (a.obj && !a.obj.cut){ a.obj.y+=a.obj.vy; if (a.obj.kind==='leaf') a.obj.x+=Math.sin(t/4)*0.3; }
+          if (t<14){ ang=lerp(TOOL_REST,-1.2,smooth(t/14)); sy=0.92; }
+          else if (t<24){ const q=(t-14)/10; ang=lerp(-1.2,2.5,q*0.4+easeIn3(q)*0.6); }
+          else if (t<50) ang=2.5;
+          else ang=lerp(2.5,TOOL_REST,smooth((t-50)/16));
+          if (t===14) hopSmall(c,-4.2);
+          if (t>=15 && t<=25){ const p=handPoint(c,e.st,ang,13.5); c.slash.push({ x:p.x, y:p.y, life:14 }); }
+          if (t===18) sfx('swoosh', a.ambient);
+          if (t===22 && a.obj && !a.obj.cut){ const ob=a.obj; ob.cut=true;
+            const col=ob.kind==='leaf'?'#7FA35A':ob.kind==='star'?'#F3D36A':'#A9D3EA';
+            for (const s of [-1,1]) addPart(c,{ x:ob.x+s, y:ob.y, vx:s*rand(0.6,1), vy:rand(-1.4,-0.8), g:0.1, life:46, c:col, s:2, shape:'half' });
+            burst(c,ob.x,ob.y,6,['#FFFFFF','#FFF2B8'],{ vmin:0.5, vmax:1.3, s:1 }); }
+          if (t>=66) a.done=true;
+          return { tool:{ ang }, sy, objs:(a.obj && !a.obj.cut) ? [a.obj] : null };
+        } },
+
+      cape: { kind:'gadget',
+        // climb the ledges level by level to the top one, strike a pose, then glide down with the cape spread
+        start(c){ if (c.y < GROUND_Y-0.5) return null;
+          return { lock:true, i:0, pt:0, plan:[['walk',37],['jump',58],['walk',42],['jump',42],['walk',48],['jump',27],['pose',55],['walk',61],['glide']] }; },
+        step(c, e, a){ const s=a.plan[a.i], pose={}; if (!s){ a.done=true; return pose; }
+          a.pt++; const next=()=>{ a.i++; a.pt=0; };
+          if (s[0]==='walk'){ const d=s[1]-c.posX; if (Math.abs(d)<0.9){ c.posX=s[1]; next(); } else { c.dir=Math.sign(d); c.posX+=c.dir*0.9; pose.walk=true; } }
+          else if (s[0]==='jump'){ if (a.pt===1){ c.vy=P_JUMP*1.02; c.grounded=false; } else if (c.grounded){ if (Math.abs(c.y-s[1])<1) next(); else a.done=true; } }
+          else if (s[0]==='pose'){ pose.capeWind=true; pose.sy=1.05; if (a.pt===8) burst(c,c.posX,c.y-26,8,['#FFF2B8','#E0C877'],{ vmin:0.3, vmax:0.9, s:1 }); if (a.pt>=s[1]) next(); }
+          else if (s[0]==='glide'){ a.noPhys=true;
+            if (a.pt===1){ c.dir=1; c.vy=-1.6; c.grounded=false; sfx('swoosh', a.ambient); }
+            c.posX+=c.dir*0.8; if (c.posX>SCENE_W-14){ c.posX=SCENE_W-14; c.dir=-1; } if (c.posX<14){ c.posX=14; c.dir=1; }
+            c.vy=Math.min(c.vy+0.07,0.32); c.y+=c.vy; pose.capeSpread=smooth(a.pt/14); pose.tilt=c.dir*0.1;
+            if (c.y>=GROUND_Y){ c.y=GROUND_Y; c.vy=0; c.grounded=true; a.done=true; dust(c,c.posX,GROUND_Y,6,e.world); } }
+          return pose;
+        } },
+
+      shield: { kind:'gadget',
+        start(c, e){ const side=c.dir<0?1:-1; // the shield hangs on the sprite's left = this side of the scene
+          const kind=e.world==='jungle'?'acorn':e.world==='space'?'meteor':'ball';
+          return { lock:true, side, ht:0, proj:{ kind, x:c.posX+side*80, y:c.y-13, vx:-side*1.6, vy:0, g:0, hit:false } }; },
+        step(c, e, a){ const p=a.proj, t=a.t; let up=0;
+          p.x+=p.vx; p.vy+=p.g; p.y+=p.vy;
+          const face=c.posX+a.side*11;
+          if (!p.hit){ p.y=c.y-13+Math.sin(t/6)*1.2; up=clamp01((40-Math.abs(p.x-face))/22);
+            if (p.kind==='meteor' && t%2===0) addPart(c,{ x:p.x+a.side*2, y:p.y, vx:a.side*0.3, vy:rand(-0.2,0.2), life:16, c:Math.random()<0.5?'#E88C36':'#F3C86A', s:1.5, shape:'puff' });
+            if (a.side<0 ? p.x>=face : p.x<=face){ p.hit=true; p.vx=a.side*rand(1.6,2.2); p.vy=-2.4; p.g=0.13; c.shake=5; c.posX-=a.side*2.5;
+              burst(c,p.x,p.y,10,['#FFFFFF','#FFE58A','#F3C86A'],{ vmin:0.6, vmax:1.6, s:1 }); sfx('clonk', a.ambient); } }
+          else { a.ht++; up=Math.max(0,1-a.ht/25); if (a.ht>70) a.done=true; }
+          if (t>200) a.done=true;
+          return { shieldUp:up, objs:[p] };
+        } },
+
+      magic: { kind:'gadget',
+        start(){ return { lock:true, spin:0 }; },
+        step(c, e, a){ const t=a.t; a.spin+=0.05+Math.min(t,36)*0.012; let alpha=1;
+          if (t<36){ if (t%3===0) addPart(c,{ x:c.posX+rand(-12,12), y:c.y-rand(4,26), vy:-0.3, life:20, c:Math.random()<0.5?'#E9C879':'#9FE0EC', s:1, shape:'star' }); }
+          else if (t<50) alpha=1-(t-36)/14;
+          else if (t===50){ alpha=0; const cols=['#E9C879','#9FE0EC','#FFFFFF'];
+            burst(c,c.posX,c.y-12,16,cols,{ shape:'star', s:1.2 });
+            const surf=[{ x0:12, x1:SCENE_W-12, top:GROUND_Y }].concat(PLATFORMS); let pick=null;
+            for (let i=0;i<12 && !pick;i++){ const s=surf[Math.floor(Math.random()*surf.length)], x=rand(s.x0+5,s.x1-5); if (Math.abs(x-c.posX)>30 || i===11) pick={ x, y:s.top }; }
+            c.posX=pick.x; c.y=pick.y; c.vy=0; c.grounded=true;
+            burst(c,c.posX,c.y-12,16,cols,{ shape:'star', s:1.2 }); sfx('poof', a.ambient); }
+          else if (t<66) alpha=(t-50)/16;
+          if (t>=66) a.done=true;
+          return { magicAngle:a.spin, alpha };
+        } },
+
+      electricity: { kind:'gadget',
+        start(){ return { lock:true }; },
+        step(c, e, a){ const t=a.t; let charge;
+          if (t<70){ charge=t/70; if (t%3===0) addPart(c,{ x:c.posX+rand(-14,14), y:c.y-rand(2,28), vx:rand(-0.4,0.4), vy:rand(-0.4,0.4), life:8, c:'#F6D85A', s:1, shape:'spark' }); }
+          else if (t===70){ charge=1; const ox=c.posX, oy=c.y-12; c.rings.push({ x:ox, y:oy, r:6, vr:2.6, life:32, max:32 }); c.flash=0.28; c.shake=5; sfx('zap', a.ambient);
+            PLATFORMS.forEach((p,i)=>{ const d=Math.hypot((p.x0+p.x1)/2-ox, p.top-oy); if (d<85) c.platGlow[i]={ d:Math.round(d/2.6), life:40 }; }); }
+          else charge=Math.max(0,1-(t-70)/30);
+          if (t>=110) a.done=true;
+          return { charge, jx:t<70 ? Math.sin(t*1.9)*0.5*charge : 0 };
+        } },
+
+      drone: { kind:'gadget',
+        start(c, e){ const h=droneHome(c,e.st); return { lock:false, x:h.x, y:h.y, tx:c.posX>SCENE_W/2 ? rand(22,55) : rand(95,128), drop:Math.random()<0.65, rt:0 }; },
+        step(c, e, a){ const t=a.t, home=droneHome(c,e.st); let scan=null, walk=false;
+          if (t<45){ const q=smooth(t/45); a.x=lerp(home.x,a.tx,q); a.y=lerp(home.y,14,q); }
+          else if (t<165 && !a.back){ a.x=a.tx+Math.sin((t-45)/22)*18; a.y=14+Math.sin(t/10); scan={ x:a.x, y:a.y+3, a:0.2+0.08*Math.sin(t/3) };
+            if (t===160 && a.drop){ a.star={ x:a.x, y:a.y+3, vy:0.2 }; a.lock=true; sfx('chime', a.ambient); } }
+          if (a.star){ const s=a.star, d=s.x-c.posX; s.vy=Math.min(s.vy+0.02,0.5); s.y=Math.min(s.y+s.vy, GROUND_Y-2);
+            if (c.grounded && Math.abs(d)>1.2){ c.dir=Math.sign(d); c.posX+=c.dir*0.9; walk=true; }
+            if (Math.abs(d)<7 && s.y>=c.y-26){ burst(c,s.x,s.y,12,['#FFE58A','#FFFFFF','#F3C86A'],{ shape:'star', s:1.2 }); hopSmall(c); a.star=null; a.lock=false; sfx('chime', a.ambient); }
+            else if (t>420){ a.star=null; a.lock=false; } }
+          if (t>=165 && !a.star){ if (!a.back){ a.back=true; a.bx=a.x; a.by=a.y; } a.rt++; const q=smooth(a.rt/45); a.x=lerp(a.bx,home.x,q); a.y=lerp(a.by,home.y,q); if (a.rt>=45) a.done=true; }
+          return { noDrone:true, droneAt:{ x:a.x, y:a.y }, scan, walk, objs:a.star ? [{ kind:'star', x:a.star.x, y:a.star.y, big:true }] : null };
+        } },
+
+      dog: { kind:'gadget', // throw a ball, the dog fetches it and brings it back
+        start(c, e){ if (c.posX+c.dir*60>SCENE_W-10 || c.posX+c.dir*60<10) c.dir=-c.dir;
+          return { lock:true, ball:{ kind:'ball', x:c.posX+c.dir*6, y:c.y-14, vx:c.dir*1.5, vy:-2.6, state:'air' } }; },
+        step(c, e, a){ const b=a.ball, t=a.t; let comp=null;
+          if (t===0){ hopSmall(c,-2.2); sfx('swoosh', a.ambient); }
+          if (b.state==='air'){ b.vy+=0.12; b.x+=b.vx; b.y+=b.vy;
+            if (b.y>=GROUND_Y-1){ b.y=GROUND_Y-1; if (Math.abs(b.vy)>0.6){ b.vy*=-0.45; b.vx*=0.75; } else { b.vy=0; b.vx*=0.93; } }
+            if (b.x<4||b.x>SCENE_W-4){ b.vx=-b.vx*0.6; b.x=Math.max(4,Math.min(SCENE_W-4,b.x)); }
+            comp={ target:b.x, speed:1.7 };
+            if (t>8 && Math.abs(c.compX-b.x)<3 && b.y>GROUND_Y-6){ b.state='carried'; sfx('bark', a.ambient); } }
+          else if (b.state==='carried'){ const tgt=c.posX+(c.compX<c.posX?-12:12); comp={ target:tgt, speed:1.5 };
+            b.x=c.compX+(c.compDir||1)*8; b.y=GROUND_Y-8;
+            if (Math.abs(c.compX-tgt)<2){ b.state='dropped'; b.vy=0; a.endT=t+45; hopSmall(c,-3.5); c.compVy=-2.8;
+              for (let i=0;i<3;i++) addPart(c,{ x:(c.posX+c.compX)/2+rand(-6,6), y:c.y-22, vy:-0.35, life:50, c:'#E86F86', s:1, shape:'heart' }); } }
+          else { b.y=Math.min(GROUND_Y-1,b.y+1); if (t>=a.endT) a.done=true; }
+          if (t>600) a.done=true;
+          return { comp, objs:b.state!=='dropped' || t<a.endT-20 ? [b] : null };
+        } },
+
+      rc: { kind:'gadget', // a lap with a ramp jump and a wheelie
+        start(c){ const dir=c.compX<SCENE_W/2 ? 1 : -1; return { lock:false, dir, ramp:{ x:dir>0?95:55, dir, a:0 }, phase:0 }; },
+        step(c, e, a){ const t=a.t, r=a.ramp; let comp;
+          if (a.phase===0){ r.a=Math.min(1,t/20); comp={ target:a.dir>0?SCENE_W-8:8, speed:Math.min(2.4,0.6+t*0.06) };
+            const s=(c.compX-(r.x-r.dir*10))*r.dir; // distance up the ramp
+            if (!a.jumped && s>0 && s<10){ c.compY=-s*0.5; c.compVy=0; c.compAng=-0.32; }
+            else if (!a.jumped && s>=10){ a.jumped=true; c.compVy=-3.1; sfx('vroom', a.ambient); }
+            if (a.jumped && !a.landed && c.compY===0 && c.compVy===0){ a.landed=true; a.wheelie=40; dust(c,c.compX,GROUND_Y,4,e.world); }
+            if (Math.abs(c.compX-comp.target)<1.5) a.phase=1; }
+          else { r.a=Math.max(0,r.a-0.04); const tgt=c.posX-30*(c.dir||1); comp={ target:tgt, speed:1.6 }; if (Math.abs(c.compX-tgt)<2 && r.a===0) a.done=true; }
+          if (a.wheelie>0){ a.wheelie--; c.compAng=-0.38*Math.sin(Math.min(1,(40-a.wheelie)/8)*Math.PI/2)*(a.wheelie>8?1:a.wheelie/8); }
+          else if (a.jumped && c.compY<0) c.compAng=-0.15; else if (!a.wheelie) c.compAng=c.compY<0?c.compAng:0;
+          if (t>500) a.done=true;
+          return { comp, ramp:r };
+        } },
+
+      // --- species quirks (any stage) ---
+      q_hund: { kind:'quirk', start(){ return { lock:true }; }, // chases its own tail
+        step(c, e, a){ const t=a.t; if (t%7===0) c.dir=-c.dir; c.posX+=Math.sin(t*0.45)*0.5; if (t===0||t===42) hopSmall(c,-2.2); if (t>=84) a.done=true; return { wagFast:true }; } },
+      q_leopard: { kind:'quirk', start(){ return { lock:true }; }, // stretch, nap, wake up
+        step(c, e, a){ const t=a.t; let sx=1, sy=1, blink=false;
+          if (t<30){ sx=1+0.22*smooth(t/30); sy=1-0.16*smooth(t/30); }
+          else if (t<340){ sx=1.12; sy=0.8; blink=true; if ((t-30)%45===0) addPart(c,{ x:c.posX+c.dir*5, y:c.y-18, vx:c.dir*0.15, vy:-0.25, life:70, c:'#FFFFFF', s:1, shape:'z' }); }
+          else { const q=(t-340)/40; sx=lerp(1.12,1,smooth(q)); sy=0.8+0.3*Math.sin(Math.min(1,q*1.6)*Math.PI)*0.6+0.2*smooth(q); }
+          if (t>=380) a.done=true; return { sx, sy, blink };
+        } },
+      q_varg: { kind:'quirk', start(){ return { lock:true }; }, // nose down, sniffing around
+        step(c, e, a){ const t=a.t;
+          if (t%26===13 && c.posX+c.dir*3>16 && c.posX+c.dir*3<SCENE_W-16) c.posX+=c.dir*3;
+          if (t%13===0) addPart(c,{ x:c.posX+c.dir*9, y:c.y-4, vx:c.dir*0.3, vy:-0.2, life:14, c:'#C9C6D2', s:1, shape:'puff' });
+          if (t===64 && Math.random()<0.5) c.dir=-c.dir;
+          if (t>=130) a.done=true; return { tilt:c.dir*0.2+Math.sin(t/5)*0.04, walk:t%26>8&&t%26<14 };
+        } },
+      q_hop: { kind:'quirk', start(){ return { lock:true }; }, step(c, e, a){ if (a.t===0||a.t===26) hopSmall(c,-3.4); if (a.t>=50) a.done=true; return {}; } },
+
+      // --- tap reactions ---
+      r_giggle: { kind:'react', start(){ return { lock:true }; },
+        step(c, e, a){ if (a.t===0||a.t===18) hopSmall(c,-3); if (a.t===4) for (let i=0;i<3;i++) addPart(c,{ x:c.posX+rand(-8,8), y:c.y-24, vx:rand(-0.2,0.2), vy:-0.4, life:46, c:'#E86F86', s:1, shape:'heart' }); if (a.t>=40) a.done=true; return {}; } },
+      r_wave: { kind:'react', start(){ return { lock:true }; },
+        step(c, e, a){ const t=a.t; if (t===2) addPart(c,{ x:c.posX, y:c.y-28, vy:-0.35, life:46, c:'#E86F86', s:1, shape:'heart' }); if (t>=50) a.done=true; return { tilt:Math.sin(t/4)*0.25*(1-t/50) }; } },
+      r_spin: { kind:'react', start(){ return { lock:true }; },
+        step(c, e, a){ const t=a.t; if (t%5===0) addPart(c,{ x:c.posX+rand(-10,10), y:c.y-rand(6,26), vy:-0.3, life:20, c:'#F3D36A', s:1, shape:'star' }); if (t>=40) a.done=true; return { spinX:Math.cos(t*0.32) }; } }
+    };
+    const QUIRK_FOR = { hund:'q_hund', leopard:'q_leopard', varg:'q_varg' };
+
+    function startAct(c, type, env, ambient){
+      const def=ACTIONS[type]; if (!def) return;
+      const a=def.start ? def.start(c, env) : {};
+      if (!a){ if (def.kind==='gadget') c.actCool=90; else c.quirkCool=120; return; }
+      a.type=type; a.kind=def.kind; a.t=0; a.ambient=ambient; c.act=a; c.moving=false;
+    }
+    function endAct(c){ const a=c.act; c.act=null; c.compAng=0;
+      if (a && a.kind==='gadget') c.actCool=Math.round(rand(300,600));
+      else if (a && a.kind==='quirk') c.quirkCool=Math.round(rand(700,1400)); }
+
+    // ---- evolution celebrations ----
+    function startEvolution(c, child, from, to){
+      c.act=null; c.flying=false; c.compAng=0;
+      const kind = to===2 ? (child.species==='varg' ? 'were' : 'final') : 'grow';
+      c.evo={ kind, t:0, from, to };
+      if (kind!=='grow'){ const card=document.getElementById('card-'+c.i); if (card) card.classList.add('evolving'); }
+    }
+    function endEvolution(c){ c.evo=null; c.actCool=25; c.nextActLoud=true;
+      const card=document.getElementById('card-'+c.i); if (card) card.classList.remove('evolving'); }
+    function stepEvolution(c, e){
+      const v=c.evo, t=v.t, G=geomFor(STAGES[v.to]), cyS=c.y-(cgy-G.bodyCy)*SPR;
+      const pose={ drawStage:v.to };
+      const pop=(t0)=>{ const q=t-t0; if (q<0) return 1; if (q<12) return 1+0.28*Math.sin(q/12*Math.PI); return 1+0.06*Math.sin((q-12)*0.6)*Math.exp(-(q-12)/10); };
+      if (v.kind==='grow'){
+        if (t<40){ pose.drawStage=v.from; pose.spinX=Math.cos(t*0.45); pose.glow=smooth(t/40)*0.6; pose.lift=smooth(t/40)*5; }
+        else { pose.lift=5*(1-smooth((t-40)/18)); pose.sx=pose.sy=pop(40); pose.glow=Math.max(0,0.6-(t-40)/30); }
+        if (t===40){ burst(c,c.posX,cyS-5,22,['#FFE58A','#FFFFFF','#F3C86A'],{ shape:'star' }); c.flash=0.45; flashBar(c.i); sfx('evolve'); }
+        if (t>=75) v.done=true;
+      } else if (v.kind==='final'){
+        const tool = ['sword','hammer','staff'].indexOf(e.gadget)>=0;
+        if (t<70){ pose.drawStage=v.from; pose.beam=smooth(t/20); pose.lift=smooth(t/70)*16; pose.spinX=Math.cos(t*0.5); pose.glow=smooth(t/70)*0.9;
+          if (t%3===0) addPart(c,{ x:c.posX+rand(-9,9), y:c.y-rand(0,10), vy:-rand(0.5,1.1), life:40, c:'#FFF4C8', s:1, shape:'spark' }); }
+        else if (t<125){ pose.beam=1; pose.lift=16; pose.glow=Math.max(0.3,0.9-(t-70)/40); pose.sx=pose.sy=pop(70);
+          if (tool){ const q=smooth((t-70)/55); pose.tool={ ang:TOOL_REST+(1-q)*4*Math.PI, offY:-(1-q)*40 }; }
+          if (t%4===0){ const an=Math.random()*Math.PI*2; addPart(c,{ x:c.posX+Math.cos(an)*16, y:c.y-16+Math.sin(an)*14-16, vy:-0.2, life:24, c:Math.random()<0.5?'#FFE58A':'#FFFFFF', s:1, shape:'star' }); } }
+        else { const q=(t-125)/30; pose.beam=1-smooth((t-125)/40); pose.lift=16*(1-smooth(q)); if (t>=155) pose.sy=1-0.1*Math.sin(Math.min(1,(t-155)/15)*Math.PI); }
+        if (t===70){ burst(c,c.posX,cyS-16,30,['#FFE58A','#FFFFFF','#F3C86A','#9FE0EC'],{ shape:'star', vmax:2.4 }); c.flash=0.7; c.shake=6; flashBar(c.i); sfx('evolveBig');
+          if (e.gadget==='dog'||e.gadget==='rc') c.compX=c.posX+(c.posX<SCENE_W/2?1:-1)*95; }
+        if (t>=170) v.done=true;
+      } else { // 'were': moonrise, howl, transformation
+        const moonA = t<170 ? smooth(t/40) : 1-smooth((t-170)/60);
+        pose.night = t<170 ? smooth(t/50)*0.55 : 0.55*(1-smooth((t-170)/60));
+        pose.moon = { x:36, y:lerp(48,16,smooth(t/60)), a:moonA };
+        if (t<110) pose.drawStage=v.from;
+        if (t>=50 && t<110){ pose.howl=true; pose.blink=true; pose.tilt=-0.22*c.dir;
+          if ((t-50)%12===0) addPart(c,{ x:c.posX+c.dir*4, y:c.y-20, vx:c.dir*0.35, vy:-0.45, life:40, c:'#E8E2F8', s:1, shape:'arc' }); }
+        if (t===52) sfx('howl');
+        if (t>=110 && t<170){ const per=Math.max(2,Math.round(10-(t-110)/7)); pose.drawStage=(Math.floor((t-110)/per)%2) ? v.to : v.from; c.shake=Math.max(c.shake,1.5);
+          if (t%3===0) addPart(c,{ x:c.posX+rand(-12,12), y:c.y-rand(2,26), vx:rand(-0.3,0.3), vy:-0.4, life:24, c:Math.random()<0.5?'#9C86D8':'#5D5668', s:1.2, shape:'spark' }); }
+        if (t===170){ burst(c,c.posX,cyS-4,28,['#B9A6E8','#FFFFFF','#F2C14E'],{ shape:'star', vmax:2.4 }); c.flash=0.6; c.shake=8; flashBar(c.i); sfx('evolveBig'); }
+        if (t>=170) pose.sx=pose.sy=pop(170);
+        if (t>=235) v.done=true;
+      }
+      v.t++;
+      return pose;
+    }
+
+    // ---- drawing helpers for the effects layer ----
+    function drawParticles(c, ctx, sX, sY){
+      const keep=[];
+      for (const p of c.parts){
+        p.vx*=p.drag; p.vy*=p.drag; p.vy+=p.g; p.x+=p.vx; p.y+=p.vy; p.life--;
+        if (p.life<=0) continue; keep.push(p);
+        const al=p.life/p.max; ctx.globalAlpha=Math.min(1,al*1.4); ctx.fillStyle=p.c; ctx.strokeStyle=p.c;
+        const X=p.x*sX, Y=p.y*sY, u=sX;
+        switch (p.shape){
+          case 'star': { const s=p.s; ctx.fillRect(X-u*0.5,Y-(s+0.5)*u,u,(2*s+1)*u); ctx.fillRect(X-(s+0.5)*u,Y-u*0.5,(2*s+1)*u,u); break; }
+          case 'puff': { ctx.globalAlpha=al*0.55; ctx.beginPath(); ctx.arc(X,Y,p.s*(1.6-al*0.6)*u,0,Math.PI*2); ctx.fill(); break; }
+          case 'heart': { const H=[[0,1,0,1,0],[1,1,1,1,1],[0,1,1,1,0],[0,0,1,0,0]]; for (let j=0;j<4;j++) for (let i=0;i<5;i++) if (H[j][i]) ctx.fillRect(X+(i-2.5)*u*0.8,Y+(j-2)*u*0.8,u*0.8,u*0.8); break; }
+          case 'z': { const Z=[[1,1,1],[0,0,1],[0,1,0],[1,0,0],[1,1,1]]; for (let j=0;j<5;j++) for (let i=0;i<3;i++) if (Z[j][i]) ctx.fillRect(X+(i-1.5)*u*0.7,Y+(j-2.5)*u*0.7,u*0.7,u*0.7); break; }
+          case 'arc': { ctx.lineWidth=u*0.8; ctx.beginPath(); const r=(3+(1-al)*7)*u, base=p.vx>0?-0.6:-Math.PI+0.6; ctx.arc(X,Y,r,base-0.7,base+0.7); ctx.stroke(); break; }
+          case 'half': ctx.fillRect(X-u,Y-u*0.6,u*2,u*1.2); break;
+          default: ctx.fillRect(X-p.s*u*0.5,Y-p.s*u*0.5,p.s*u,p.s*u);
+        }
+      }
+      c.parts=keep; ctx.globalAlpha=1;
+    }
+    function drawObj(ctx, o, sX, sY){
+      const X=o.x*sX, Y=o.y*sY, u=sX;
+      const circ=(r,col)=>{ ctx.fillStyle=col; ctx.beginPath(); ctx.arc(X,Y,r*u,0,Math.PI*2); ctx.fill(); };
+      switch (o.kind){
+        case 'leaf': ctx.fillStyle='#7FA35A'; ctx.beginPath(); ctx.ellipse(X,Y,2.6*u,1.4*u,0.5,0,Math.PI*2); ctx.fill(); ctx.fillStyle='#4E6A43'; ctx.fillRect(X-2*u,Y,4*u,u*0.5); break;
+        case 'star': { const s=o.big?2.5:1.8; ctx.fillStyle='#F3D36A'; ctx.fillRect(X-u*0.6,Y-s*u,u*1.2,2*s*u); ctx.fillRect(X-s*u,Y-u*0.6,2*s*u,u*1.2); ctx.fillStyle='#FFFFFF'; ctx.fillRect(X-u*0.5,Y-u*0.5,u,u); break; }
+        case 'drop': ctx.fillStyle='#A9D3EA'; ctx.beginPath(); ctx.ellipse(X,Y+u*0.5,1.2*u,1.6*u,0,0,Math.PI*2); ctx.fill(); ctx.fillRect(X-u*0.4,Y-2*u,u*0.8,u*1.4); break;
+        case 'ball': circ(2.1,'#D9534A'); ctx.fillStyle='#FFFFFF'; ctx.fillRect(X-2*u,Y-u*0.3,4*u,u*0.6); break;
+        case 'acorn': circ(2,'#A0703F'); ctx.fillStyle='#5E4126'; ctx.fillRect(X-2.2*u,Y-2.4*u,4.4*u,1.6*u); ctx.fillRect(X-u*0.3,Y-3.2*u,u*0.6,u); break;
+        case 'meteor': circ(2.6,'#E88C36'); circ(1.9,'#7A6250'); ctx.fillStyle='#5E4A3C'; ctx.fillRect(X-u*0.6,Y-u*0.4,u,u); break;
+      }
+    }
+    function drawDrone(ctx, d, f, sX, sY){
+      const X=d.x*sX, Y=d.y*sY, u=sX;
+      ctx.fillStyle='#2E2E32'; ctx.beginPath(); ctx.ellipse(X,Y,4.2*u,2.4*u,0,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle='#4A4A50'; ctx.beginPath(); ctx.ellipse(X,Y,3*u,1.5*u,0,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle='#8FD16A'; ctx.fillRect(X-u*0.5,Y-u*0.5,u,u);
+      const rw=((f>>1)%2)?2.4:3.6; ctx.fillStyle='#6A6A70';
+      for (const s of [-1,1]) ctx.fillRect(X+s*4.2*u-rw*u/2,Y-2.6*u,rw*u,u*0.7);
+    }
+    function boltPath(b){ const pts=[[b.x0,b.y0]], n=7; for (let i=1;i<n;i++){ const q=i/n; pts.push([lerp(b.x0,b.x1,q)+rand(-4,4), lerp(b.y0,b.y1,q)]); } pts.push([b.x1,b.y1]); return pts; }
+
     function drawPetFrame(c){
       const child = data.children[c.i];
       if (!child) return;
@@ -1563,58 +1982,85 @@
       const st = STAGES[stageI];
       const rawGadget = st.att ? gadgetFor(child) : null;
       const isCompanion = rawGadget === 'dog' || rawGadget === 'rc';
-      const gadget = isCompanion ? null : rawGadget;
+      const env = { st, child, gadget: rawGadget, f, world: c.world || 'city' };
 
       const margin = 16;
       const br = Math.sin(f/34), sy = 1 + br*0.03, sx = 1 - br*0.02;
-      const blink = (f % 190) < 6;
+      let blink = (f % 190) < 6;
       let footL=0, footR=0, bob=0;
+      let pose = {};
 
-      // ---- jetpack flight: every so often take off, cruise around, then land ----
-      if (gadget === 'jetpack') {
+      // ---- what is the pet doing: evolving > action > wandering ----
+      if (c.evo) {
+        pose = stepEvolution(c, env);
+        if (c.evo.done) endEvolution(c);
+      } else {
+        if (!c.act && !c.flying && c.grounded) {
+          if (rawGadget && ACTIONS[rawGadget] && --c.actCool <= 0) { startAct(c, rawGadget, env, !c.nextActLoud); c.nextActLoud = false; }
+          else if (--c.quirkCool <= 0) startAct(c, QUIRK_FOR[species] || 'q_hop', env, true);
+        }
+        if (c.act) { pose = ACTIONS[c.act.type].step(c, env, c.act) || {}; c.act.t++; if (c.act.done) endAct(c); }
+      }
+      const locked = !!(c.evo || (c.act && c.act.lock));
+
+      // ---- jetpack flight: every so often take off, cruise around (sometimes a loop), then land ----
+      if (rawGadget === 'jetpack' && !c.evo) {
         if (c.flyCool === undefined) c.flyCool = 60 + Math.floor(Math.random()*120);
-        if (!c.flying && c.grounded && --c.flyCool <= 0) {
-          c.flying = true; c.grounded = false; c.vy = -1.4;
+        if (!c.flying && !c.act && c.grounded && --c.flyCool <= 0) {
+          c.flying = true; c.grounded = false; c.vy = -1.4; c.loopT = 0;
           c.flyT = 300 + Math.floor(Math.random()*360);
           c.flyTarget = FLY_MIN_Y + Math.random()*(FLY_MAX_Y - FLY_MIN_Y);
         }
-      } else if (c.flying) { c.flying = false; }
+      } else if (c.flying) { c.flying = false; c.loopT = 0; }
       if (c.flying) {
         c.flyT--;
-        if (f % 100 === 0) c.flyTarget = FLY_MIN_Y + Math.random()*(FLY_MAX_Y - FLY_MIN_Y);
-        if (Math.random() < 0.004) c.dir = -c.dir;
-        c.posX += c.dir * 0.9;
+        if (c.loopT > 0) { // loop-the-loop: forward, up, over and back down
+          const ang = (1 - c.loopT/56) * Math.PI * 2;
+          c.posX += c.dir*1.5*Math.cos(ang); c.y -= 1.5*Math.sin(ang); c.vy = 0;
+          c.loopAng = -c.dir*ang; c.loopT--; if (!c.loopT) c.loopAng = 0;
+        } else {
+          if (c.flyT > 90 && c.y > 48 && Math.random() < 0.006) c.loopT = 56;
+          if (f % 100 === 0) c.flyTarget = FLY_MIN_Y + Math.random()*(FLY_MAX_Y - FLY_MIN_Y);
+          if (Math.random() < 0.004) c.dir = -c.dir;
+          c.posX += c.dir * 0.9;
+          c.vy += (c.flyTarget - c.y) * 0.012 - c.vy * 0.07 + Math.sin(f/14) * 0.025;
+          c.y = Math.max(FLY_MIN_Y - 4, c.y + c.vy);
+        }
         if (c.posX > SCENE_W - margin) { c.posX = SCENE_W - margin; c.dir = -1; }
         if (c.posX < margin) { c.posX = margin; c.dir = 1; }
-        c.vy += (c.flyTarget - c.y) * 0.012 - c.vy * 0.07 + Math.sin(f/14) * 0.025;
-        c.y = Math.max(FLY_MIN_Y - 4, c.y + c.vy);
-        if (c.flyT <= 0) { // engines off: fall and land like after a hop
+        if (f % 3 === 0) addPart(c, { x: c.posX + rand(-7,7), y: c.y + 1, vx: rand(-0.2,0.2), vy: 0.25, drag: 0.97, life: 28, c: '#C8C8CD', s: 1.6, shape: 'puff' });
+        if (c.flyT <= 0 && !c.loopT) { // engines off: fall and land like after a hop
           c.flying = false; c.vy = 0; c.moving = false;
           c.idleT = 90 + Math.floor(Math.random()*120);
           c.flyCool = 360 + Math.floor(Math.random()*600);
         }
       }
       // ---- horizontal: idle most of the time, then a short move burst ----
-      else if (c.moving) {
-        c.moveT--;
-        c.posX += c.dir * 0.6;
-        if (c.posX > SCENE_W - margin) { c.posX = SCENE_W - margin; c.dir = -1; }
-        if (c.posX < margin) { c.posX = margin; c.dir = 1; }
-        if (c.grounded) { const wp = Math.floor(f/6) % 2; footL = wp===0?1:0; footR = wp===1?1:0; bob = (wp===0) ? R : 0; }
-        if (c.moveT <= 0) { c.moving = false; c.idleT = 150 + Math.floor(Math.random()*300); }
-      } else {
-        c.idleT--;
-        if (c.idleT <= 0) { c.moving = true; c.moveT = 24 + Math.floor(Math.random()*70); if (Math.random() < 0.5) c.dir = -c.dir; }
+      else if (!locked) {
+        if (c.moving) {
+          c.moveT--;
+          c.posX += c.dir * 0.6;
+          if (c.posX > SCENE_W - margin) { c.posX = SCENE_W - margin; c.dir = -1; }
+          if (c.posX < margin) { c.posX = margin; c.dir = 1; }
+          if (c.grounded) { const wp = Math.floor(f/6) % 2; footL = wp===0?1:0; footR = wp===1?1:0; bob = (wp===0) ? R : 0; }
+          if (c.moveT <= 0) { c.moving = false; c.idleT = 150 + Math.floor(Math.random()*300); }
+        } else {
+          c.idleT--;
+          if (c.idleT <= 0) { c.moving = true; c.moveT = 24 + Math.floor(Math.random()*70); if (Math.random() < 0.5) c.dir = -c.dir; }
+        }
       }
+      if (pose.walk && c.grounded) { const wp = Math.floor(f/6) % 2; footL = wp===0?1:0; footR = wp===1?1:0; bob = (wp===0) ? R : 0; }
+
+      // all-done cheer: a couple of big happy jumps
+      if (c.cheer > 0 && !c.evo) { c.cheer--; if (c.grounded && !c.act && c.cheer % 32 === 0) { c.vy = -4.6; c.grounded = false; burst(c, c.posX, c.y - 20, 6, ['#FFE58A','#E86F86','#9FE0EC'], { shape:'star', vmin:0.5, vmax:1.2, s:1 }); } }
 
       // ---- vertical: gravity + platform hopping ----
-      if (c.flying) { /* thrust handled above */ }
+      if (c.flying || (c.act && c.act.noPhys)) { /* moved above / by the action */ }
       else if (c.grounded) {
         // still supported at this x? (walked off an edge => fall)
         if (!topsAt(c.posX).some(T => Math.abs(T - c.y) < 0.6)) { c.grounded = false; c.vy = 0; }
-        else { c.nextHop--; if (c.nextHop <= 0) { c.vy = P_JUMP; c.grounded = false; c.nextHop = 70 + Math.floor(Math.random()*150); } }
-      }
-      else if (!c.grounded) {
+        else if (!locked && !c.act) { c.nextHop--; if (c.nextHop <= 0) { c.vy = P_JUMP; c.grounded = false; c.nextHop = 70 + Math.floor(Math.random()*150); } }
+      } else {
         const prevY = c.y;
         c.vy += P_G; c.y += c.vy;
         if (c.vy > 0) {
@@ -1626,59 +2072,153 @@
 
       // squash/stretch from vertical speed (elongate when moving fast up/down)
       let hsx = 1, hsy = 1;
-      if (!c.grounded && !c.flying) { const st2 = Math.min(0.14, Math.abs(c.vy) * 0.024); hsy = 1 + st2; hsx = 1 - st2 * 0.6; }
+      if (!c.grounded && !c.flying && !(c.act && c.act.noPhys)) { const st2 = Math.min(0.14, Math.abs(c.vy) * 0.024); hsy = 1 + st2; hsx = 1 - st2 * 0.6; }
 
-      const grid = build(species, st, { blink, sx: sx*hsx, sy: sy*hsy, footL, footR, gadget, frame: f, thrust: !!c.flying });
-      _lctx.clearRect(0,0,CREW,CREH);
-      for (let y=0;y<CREH;y++) for (let x=0;x<CREW;x++) if (grid[y][x]) { _lctx.fillStyle = grid[y][x]; _lctx.fillRect(x,y,1,1); }
+      const drawSI = pose.drawStage != null ? pose.drawStage : stageI;
+      const drawSt = STAGES[drawSI];
+      const drawGadgetRaw = drawSt.att ? rawGadget : null;
+      const drawGadget = (drawGadgetRaw === 'dog' || drawGadgetRaw === 'rc') ? null : drawGadgetRaw;
+      const grid = build(species, drawSt, {
+        blink: blink || !!pose.blink, sx: sx*hsx*(pose.sx||1), sy: sy*hsy*(pose.sy||1), footL, footR, gadget: drawGadget, frame: f,
+        thrust: !!c.flying, tool: drawGadget ? pose.tool : null, orb: pose.orb, capeSpread: pose.capeSpread, capeWind: pose.capeWind,
+        shieldUp: pose.shieldUp, magicAngle: pose.magicAngle, charge: pose.charge, noDrone: pose.noDrone, howl: pose.howl, wagFast: pose.wagFast
+      });
+      blitGrid(grid);
 
       // ---- compose onto the visible canvas ----
       const ctx = c.ctx;
       const sX = c.canvas.width / SCENE_W;   // scene px -> device px (x)
       const sY = c.canvas.height / SCENE_H;  // scene px -> device px (y)
       ctx.clearRect(0,0,c.canvas.width,c.canvas.height);
+      ctx.save();
+      if (c.shake > 0) { const m = Math.min(2.5, c.shake*0.3); ctx.translate(rand(-m,m)*sX, rand(-m,m)*sY); c.shake = Math.max(0, c.shake - 1); }
       ctx.drawImage(c.wlo, 0,0,SCENE_W,SCENE_H, 0,0,c.canvas.width,c.canvas.height);
 
-      // feet at the pet's live y; shadow on the nearest surface below
+      // -- back effects: night + moon, glowing ledges, cracks, ramp, light beam, aura --
+      if (pose.night) { ctx.fillStyle = 'rgba(16,14,44,'+pose.night+')'; ctx.fillRect(0,0,c.canvas.width,c.canvas.height); }
+      if (pose.moon && pose.moon.a > 0) { const m = pose.moon, X = m.x*sX, Y = m.y*sY;
+        const gr = ctx.createRadialGradient(X,Y,0,X,Y,22*sX); gr.addColorStop(0,'rgba(255,248,214,'+(0.5*m.a)+')'); gr.addColorStop(1,'rgba(255,248,214,0)');
+        ctx.fillStyle = gr; ctx.fillRect(X-22*sX,Y-22*sX,44*sX,44*sX);
+        ctx.globalAlpha = m.a; ctx.fillStyle = '#F6EED0'; ctx.beginPath(); ctx.arc(X,Y,9*sX,0,Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#E4D9B4'; [[-3,-2,2],[3,2,1.6],[1,-4,1]].forEach(([dx,dy,r]) => { ctx.beginPath(); ctx.arc(X+dx*sX,Y+dy*sX,r*sX,0,Math.PI*2); ctx.fill(); }); ctx.globalAlpha = 1; }
+      PLATFORMS.forEach((p, i) => { const gl = c.platGlow[i]; if (!gl) return; if (gl.d > 0) { gl.d--; return; }
+        gl.life--; if (gl.life <= 0) { delete c.platGlow[i]; return; }
+        ctx.fillStyle = 'rgba(255,226,110,'+(0.6*gl.life/40)+')'; ctx.fillRect(p.x0*sX,(p.top-1)*sY,(p.x1-p.x0)*sX,7*sY); });
+      c.cracks = c.cracks.filter(k => --k.life > 0);
+      c.cracks.forEach(k => { ctx.strokeStyle = 'rgba(40,36,44,'+Math.min(0.8,k.life/k.max)+')'; ctx.lineWidth = sX*0.9; ctx.beginPath();
+        for (let i=-4;i<=4;i++) { const x = (k.x + i*2.2)*sX, y = (k.y + 0.6 + ((Math.floor(k.seed + i*7) % 3) - 1)*0.8)*sY; if (i===-4) ctx.moveTo(x,y); else ctx.lineTo(x,y); } ctx.stroke(); });
+      if (pose.ramp && pose.ramp.a > 0) { const r = pose.ramp; ctx.globalAlpha = r.a; ctx.fillStyle = '#8A6A46'; ctx.beginPath();
+        ctx.moveTo((r.x - r.dir*10)*sX, GROUND_Y*sY); ctx.lineTo(r.x*sX, (GROUND_Y-5)*sY); ctx.lineTo(r.x*sX, GROUND_Y*sY); ctx.closePath(); ctx.fill();
+        ctx.strokeStyle = '#B08A5E'; ctx.lineWidth = sX; ctx.beginPath(); ctx.moveTo((r.x - r.dir*10)*sX, GROUND_Y*sY); ctx.lineTo(r.x*sX, (GROUND_Y-5)*sY); ctx.stroke(); ctx.globalAlpha = 1; }
+      const G = geomFor(drawSt), lift = pose.lift || 0;
       const feetY = c.y;
+      const pivotY = feetY - bob - lift - (cgy - G.bodyCy)*SPR;
+      if (pose.beam > 0) { const X = c.posX*sX, w = 12*sX, gr = ctx.createLinearGradient(X-w,0,X+w,0);
+        gr.addColorStop(0,'rgba(255,244,200,0)'); gr.addColorStop(0.5,'rgba(255,244,200,'+(0.55*pose.beam)+')'); gr.addColorStop(1,'rgba(255,244,200,0)');
+        ctx.fillStyle = gr; ctx.fillRect(X-w, 0, 2*w, (feetY+1)*sY); }
+      if (pose.glow > 0) { const X = c.posX*sX, Y = pivotY*sY, r = 26*sX, gr = ctx.createRadialGradient(X,Y,0,X,Y,r);
+        gr.addColorStop(0,'rgba(255,236,170,'+(0.75*pose.glow)+')'); gr.addColorStop(1,'rgba(255,236,170,0)'); ctx.fillStyle = gr; ctx.fillRect(X-r,Y-r,2*r,2*r); }
+
+      // feet at the pet's live y; shadow on the nearest surface below
       const below = topsAt(c.posX).filter(T => T >= c.y - 0.5);
       const shadowY = (below.length ? Math.min.apply(null, below) : GROUND_Y) + 1;
-      const lift = Math.min(1.5, Math.max(0, (shadowY - 1 - c.y)) / 20);
-      ctx.fillStyle = 'rgba(45,42,34,'+(0.16 - lift*0.09)+')';
+      const liftS = Math.min(1.5, Math.max(0, (shadowY - 1 - c.y + lift)) / 20);
+      ctx.fillStyle = 'rgba(45,42,34,'+(0.16 - liftS*0.09)*(pose.alpha != null ? pose.alpha : 1)+')';
       ctx.beginPath();
-      ctx.ellipse(c.posX*sX, shadowY*sY, (9 - lift*3)*sX, 2*sY, 0, 0, Math.PI*2);
+      ctx.ellipse(c.posX*sX, shadowY*sY, (9 - liftS*3)*sX, 2*sY, 0, 0, Math.PI*2);
       ctx.fill();
 
-      // creature buffer -> scene: fixed sprite scale, anchored so buffer row cgy sits on feetY
-      const spriteScale = 0.6;                 // buffer px -> scene px
-      const sw = CREW * spriteScale, sh = CREH * spriteScale;
-      const topScene = feetY - bob - cgy * spriteScale; // scene y of sprite top
+      // creature buffer -> scene, pivoting around the body centre (for tilt / spin / loops)
+      const sw = CREW * SPR, sh = CREH * SPR;
       const flip = c.dir < 0;
+      let rot = pose.tilt || 0;
+      if (c.flying) rot = c.loopAng ? c.loopAng : c.dir*0.12 + Math.sin(f/20)*0.03;
+      let spinX = 1; if (pose.spinX != null) { spinX = pose.spinX; if (Math.abs(spinX) < 0.12) spinX = spinX < 0 ? -0.12 : 0.12; }
       ctx.save();
       ctx.imageSmoothingEnabled = false;
-      ctx.translate(Math.round(c.posX * sX), Math.round(feetY * sY));
-      if (c.flying) ctx.rotate(c.dir * 0.12 + Math.sin(f/20) * 0.03); // lean into the flight
-      ctx.scale(flip ? -1 : 1, 1);
+      if (pose.alpha != null) ctx.globalAlpha = clamp01(pose.alpha);
+      ctx.translate(Math.round((c.posX + (pose.jx||0)) * sX), Math.round(pivotY * sY));
+      if (rot) ctx.rotate(rot);
+      ctx.scale((flip ? -1 : 1) * spinX, 1);
       const dw = Math.round(sw * sX), dh = Math.round(sh * sY);
-      ctx.drawImage(_lo, 0,0,CREW,CREH, Math.round(-dw/2), Math.round((topScene - feetY) * sY), dw, dh);
+      ctx.drawImage(_lo, 0,0,CREW,CREH, Math.round(-dw/2), Math.round(-G.bodyCy*SPR*sY), dw, dh);
       ctx.restore();
 
-      // companion (dog / RC car) trails behind the pet on the ground
-      if (isCompanion) {
-        const target = c.posX - (c.moving ? c.dir : 1) * 30;
-        c.compX += (target - c.compX) * 0.08;
-        const cg = rawGadget === 'dog' ? buildDog(f) : buildCar(f);
+      // companion (dog / RC car) trails behind the pet on the ground (actions can steer it)
+      if (isCompanion && !(c.evo && c.evo.t < 70 && c.evo.kind === 'final')) {
+        const prevX = c.compX, steer = pose.comp;
+        if (steer) { const d = steer.target - c.compX; c.compX += Math.sign(d) * Math.min(Math.abs(d), steer.speed); }
+        else { const target = c.posX - (c.moving ? c.dir : 1) * 30; c.compX += (target - c.compX) * 0.08; }
+        if (Math.abs(c.compX - prevX) > 0.05) c.compDir = c.compX > prevX ? 1 : -1;
+        if (c.compVy || c.compY < 0) { c.compVy += 0.2; c.compY += c.compVy; if (c.compY >= 0) { c.compY = 0; c.compVy = 0; } }
+        const cg = rawGadget === 'dog' ? buildDog(Math.abs(c.compX - prevX) > 0.05 ? f : 0) : buildCar(f);
         _cctx.clearRect(0,0,CW,CH);
         for (let y=0;y<CH;y++) for (let x=0;x<CW;x++) if (cg[y][x]) { _cctx.fillStyle = cg[y][x]; _cctx.fillRect(x,y,1,1); }
         const compScale = 0.5, cdw = Math.round(CW*compScale*sX), cdh = Math.round(CH*compScale*sY);
         ctx.fillStyle = 'rgba(45,42,34,0.14)';
         ctx.beginPath(); ctx.ellipse(c.compX*sX, (GROUND_Y+1)*sY, 7*sX, 1.8*sY, 0, 0, Math.PI*2); ctx.fill();
-        const cflip = c.moving && c.dir < 0;
+        const cflip = (c.compDir || 1) < 0;
         ctx.save(); ctx.imageSmoothingEnabled = false;
-        ctx.translate(Math.round(c.compX * sX), 0); ctx.scale(cflip ? -1 : 1, 1);
-        ctx.drawImage(_clo, 0,0,CW,CH, Math.round(-cdw/2), Math.round((GROUND_Y - cGround*compScale) * sY), cdw, cdh);
+        ctx.translate(Math.round(c.compX * sX), Math.round((GROUND_Y + c.compY) * sY)); ctx.scale(cflip ? -1 : 1, 1);
+        if (c.compAng) { ctx.translate(-cdw*0.2, 0); ctx.rotate(c.compAng); ctx.translate(cdw*0.2, 0); }
+        ctx.drawImage(_clo, 0,0,CW,CH, Math.round(-cdw/2), Math.round(-cGround*compScale*sY), cdw, cdh);
         ctx.restore();
       }
+
+      // -- front effects --
+      if (pose.objs) pose.objs.forEach(o => drawObj(ctx, o, sX, sY));
+      if (pose.scan) { const s = pose.scan; ctx.fillStyle = 'rgba(143,209,106,'+s.a+')'; ctx.beginPath();
+        ctx.moveTo((s.x-1.5)*sX, s.y*sY); ctx.lineTo((s.x+1.5)*sX, s.y*sY); ctx.lineTo((s.x+9)*sX, GROUND_Y*sY); ctx.lineTo((s.x-9)*sX, GROUND_Y*sY); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = 'rgba(190,240,160,0.6)'; ctx.fillRect((s.x-8)*sX, (s.y + (GROUND_Y - s.y)*((f%40)/40))*sY, 16*sX, sY*0.7); }
+      if (pose.droneAt) drawDrone(ctx, pose.droneAt, f, sX, sY);
+      if (pose.glowAt) { const g2 = pose.glowAt, X = g2.x*sX, Y = g2.y*sY, r = g2.r*sX, gr = ctx.createRadialGradient(X,Y,0,X,Y,r);
+        gr.addColorStop(0,'rgba('+g2.rgb+','+g2.a+')'); gr.addColorStop(1,'rgba('+g2.rgb+',0)'); ctx.fillStyle = gr; ctx.fillRect(X-r,Y-r,2*r,2*r); }
+      c.slash = c.slash.filter(p => --p.life > 0);
+      for (let i=1;i<c.slash.length;i++) { const a = c.slash[i-1], b = c.slash[i]; ctx.strokeStyle = 'rgba(255,255,255,'+(0.85*b.life/14)+')'; ctx.lineWidth = 2.6*sX*b.life/14; ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.moveTo(a.x*sX, a.y*sY); ctx.lineTo(b.x*sX, b.y*sY); ctx.stroke(); }
+      c.bolts = c.bolts.filter(b => --b.life > 0);
+      c.bolts.forEach(b => { const pts = boltPath(b), al = b.life/b.max;
+        [[2.4,'rgba(243,226,138,'+al+')'],[1,'rgba(255,255,255,'+al+')']].forEach(([w,col]) => { ctx.strokeStyle = col; ctx.lineWidth = w*sX; ctx.beginPath(); pts.forEach((p,i) => i ? ctx.lineTo(p[0]*sX,p[1]*sY) : ctx.moveTo(p[0]*sX,p[1]*sY)); ctx.stroke(); }); });
+      c.rings = c.rings.filter(r => --r.life > 0);
+      c.rings.forEach(r => { r.r += r.vr; ctx.strokeStyle = 'rgba(246,216,90,'+(r.life/r.max)+')'; ctx.lineWidth = 1.4*sX; ctx.beginPath();
+        for (let i=0;i<=28;i++) { const a = i/28*Math.PI*2, rr2 = r.r + (i%2 ? 1.6 : -1.6); const x = (r.x + Math.cos(a)*rr2)*sX, y = (r.y + Math.sin(a)*rr2*0.7)*sY; i ? ctx.lineTo(x,y) : ctx.moveTo(x,y); } ctx.stroke(); });
+      drawParticles(c, ctx, sX, sY);
+      if (c.flash > 0.02) { ctx.fillStyle = 'rgba(255,255,255,'+c.flash+')'; ctx.fillRect(-10,-10,c.canvas.width+20,c.canvas.height+20); c.flash *= 0.84; } else c.flash = 0;
+      ctx.restore();
+    }
+
+    // tap a pet: it reacts (unless it's busy with an upgrade move or evolving)
+    function tapPet(i){
+      const c = petCtl[i]; if (!c || c.evo) return;
+      if (c.act && c.act.kind === 'gadget') return;
+      sfx('boop');
+      if (c.flying) { for (let k=0;k<3;k++) addPart(c, { x: c.posX + rand(-8,8), y: c.y - 24, vy: -0.4, life: 46, c: '#E86F86', s: 1, shape: 'heart' }); return; }
+      c.act = null;
+      const types = ['r_giggle','r_wave','r_spin'];
+      startAct(c, types[Math.floor(Math.random()*types.length)], { world: c.world }, false);
+    }
+
+    // everyone done: confetti over the whole page + every pet cheers
+    function allDone(){
+      const kids = data.children.filter(ch => (ch.tasks[data.routine] || []).length);
+      return kids.length > 0 && kids.every(ch => ch.tasks[data.routine].every(t => t.completed));
+    }
+    function celebrateAll(){
+      Object.values(petCtl).forEach(c => { if (c) c.cheer = 100; });
+      setTimeout(() => sfx('fanfare'), 350);
+      if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      const cv = document.createElement('canvas'); cv.className = 'confetti'; document.body.appendChild(cv);
+      const dpr = Math.min(2, window.devicePixelRatio || 1), W = innerWidth, H = innerHeight;
+      cv.width = W*dpr; cv.height = H*dpr; const x = cv.getContext('2d'); x.scale(dpr, dpr);
+      const cols = ['#E07A5F','#F2CC8F','#81B29A','#7FA8D1','#C49BD8','#F4A261'];
+      const ps = Array.from({ length: 170 }, () => ({ x: Math.random()*W, y: -20 - Math.random()*H*0.6, vx: (Math.random()-0.5)*1.5, vy: 2 + Math.random()*3,
+        r: Math.random()*6.28, vr: (Math.random()-0.5)*0.3, w: 6 + Math.random()*6, h: 4 + Math.random()*4, c: cols[Math.floor(Math.random()*cols.length)] }));
+      const t0 = performance.now();
+      (function frame(now){ const el = now - t0; x.clearRect(0,0,W,H);
+        ps.forEach(p => { p.x += p.vx + Math.sin(el/400 + p.r)*0.6; p.y += p.vy; p.r += p.vr;
+          x.save(); x.translate(p.x, p.y); x.rotate(p.r); x.fillStyle = p.c; x.globalAlpha = el > 3200 ? Math.max(0, 1 - (el-3200)/800) : 1;
+          x.fillRect(-p.w/2, -p.h/2, p.w, p.h*Math.abs(Math.cos(p.r*2)) + 1); x.restore(); });
+        if (el < 4000) requestAnimationFrame(frame); else cv.remove(); })(t0);
     }
 
     function petLoop(){
@@ -1729,6 +2269,7 @@
         card.appendChild(petScene);
         const petCanvas = petScene.querySelector('.pet-canvas');
         petCtl[childIndex] = makeController(childIndex, petCanvas);
+        petCanvas.addEventListener('click', () => tapPet(childIndex));
 
         const header = document.createElement('div');
         header.className = 'child-header';
@@ -1781,11 +2322,13 @@
           row.appendChild(menu);
 
           row.addEventListener('click', () => {
+            const wasAllDone = allDone();
             task.completed = !task.completed;
             row.classList.toggle('done', task.completed);
             saveData();
             updateCardMeta(childIndex);
             refreshPet(childIndex, true);
+            if (!wasAllDone && allDone()) celebrateAll();
           });
 
           list.appendChild(row);
