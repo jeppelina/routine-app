@@ -631,8 +631,14 @@
           ((pc.tasks && pc.tasks[lid]) || []).forEach(t => tMap.set(t.id, Object.assign({}, tMap.get(t.id) || {}, t)));
           tasks[lid] = [...tMap.values()].filter(t => !(t.gid && delTasks[t.gid]));
         });
-        const spSrc = pc.species ? pc : sc; // species + its 'chosen' mark travel together
-        return { name, world: pc.world || sc.world, species: spSrc.species, speciesSet: !!spSrc.speciesSet, upgrade: pc.upgrade || sc.upgrade, tasks };
+        // Per-kid look (animal, background, upgrade): the most recent *choice* wins, by its own
+        // timestamp, not by whose whole state was saved last. Otherwise a device that just did its
+        // morning reset (which stamps the state) would put back yesterday's animal.
+        const newest = (f) => { const a = pc[f + 'At'] || '', b = sc[f + 'At'] || ''; return (a || b) ? (a >= b ? pc : sc) : (pc[f] ? pc : sc); };
+        const spSrc = newest('species'), wSrc = newest('world'), uSrc = newest('upgrade');
+        return { name, world: wSrc.world || pc.world || sc.world, worldAt: wSrc.worldAt,
+          species: spSrc.species || pc.species || sc.species, speciesSet: !!spSrc.speciesSet, speciesAt: spSrc.speciesAt,
+          upgrade: uSrc.upgrade || pc.upgrade || sc.upgrade, upgradeAt: uSrc.upgradeAt, tasks };
       });
       return {
         routine: primary.routine || secondary.routine,
@@ -653,7 +659,7 @@
           const ts = (((c.tasks || {})[lid]) || []).map(t => t.id + '|' + (t.text || '') + '|' + (t.completed ? 1 : 0) + '|' + (t.gid || '')).sort();
           return lid + '=' + ts.join(',');
         });
-        return c.name + ':' + (c.world || '') + ':' + (c.species || '') + (c.speciesSet ? '!' : '') + ':' + (c.upgrade || '') + '{' + lists.join(';') + '}';
+        return c.name + ':' + (c.world || '') + (c.worldAt || '') + ':' + (c.species || '') + (c.speciesSet ? '!' : '') + (c.speciesAt || '') + ':' + (c.upgrade || '') + (c.upgradeAt || '') + '{' + lists.join(';') + '}';
       });
       return routines.join('#') + '||' + kids.join('#') + '||' +
         Object.keys(s.deletedLists || {}).sort().join(',') + '||' +
@@ -880,7 +886,7 @@
         });
         sel.value = GADGET_POOL.indexOf(ch.upgrade) >= 0 ? ch.upgrade : 'random';
         const preview = () => drawUpgradePreview(cv, ch, sel.value === 'random' ? null : sel.value);
-        sel.addEventListener('change', () => { ch.upgrade = sel.value; saveData(); preview(); });
+        sel.addEventListener('change', () => { ch.upgrade = sel.value; ch.upgradeAt = new Date().toISOString(); saveData(); preview(); });
         preview();
         row.appendChild(cv); row.appendChild(name); row.appendChild(sel);
         el.appendChild(row);
@@ -1576,6 +1582,7 @@
       const cur = data.children[i].world || 'city';
       const next = WORLDS[(WORLDS.indexOf(cur) + 1) % WORLDS.length];
       data.children[i].world = next;
+      data.children[i].worldAt = new Date().toISOString();
       saveData();
       const c = petCtl[i];
       if (c) c.redrawWorld();
@@ -1586,6 +1593,7 @@
       const next = SPECIES[(SPECIES.indexOf(cur) + 1) % SPECIES.length];
       data.children[i].species = next;
       data.children[i].speciesSet = true;
+      data.children[i].speciesAt = new Date().toISOString();
       saveData();
       hopPet(i);
     }
