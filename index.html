@@ -1135,18 +1135,20 @@
         for(let y=Math.floor(topY);y<=Math.ceil(botY+2);y++){ const tt=(y-topY)/(botY-topY); if(tt<0)continue; const hw=topH+(botH-topH)*Math.min(1,tt);
           for(let x=0;x<CREW;x++){ const rel=x+0.5-cx; const bh=botY+Math.sin(x*0.55+(o.frame||0)/9)*1.7*Math.min(1,tt); if(y<=bh&&Math.abs(rel)<=hw) g[y][x]=(Math.abs(rel)>hw-1.1||y>bh-1.1)?CAPE.dark:CAPE.fill; } }
       }
-      if(o.gadget==='jetpack'){ // twin tanks poking out on both sides, flickering flames
-        const tRx=2.3*k, tRy=bodyRy*0.5, tcy=bodyCy+bodyRy*0.12, fl=((o.frame||0)>>2)%2;
-        for(const sgn of [-1,1]){ const jx=cx+sgn*(bodyRx*0.98+tRx*0.35);
+      function drawJetpack(){ // twin tanks poking out on both sides, flickering flames (longer in flight)
+        const tRx=2.3*k, tRy=bodyRy*0.5, tcy=bodyCy+bodyRy*0.12, fl=((o.frame||0)>>(o.thrust?1:2))%2;
+        const out=isDog ? bodyRx*0.86+2.5*k*Math.max(0.9,ek)+tRx*0.7 : bodyRx*0.98+tRx*0.35; // clear the dog's ears
+        for(const sgn of [-1,1]){ const jx=cx+sgn*out;
           for(let y=Math.floor(tcy-tRy-1);y<=Math.ceil(tcy+tRy+1);y++) for(let x=Math.floor(jx-tRx-1);x<=Math.ceil(jx+tRx+1);x++){
             if(!inEll(x,y,jx,tcy,tRx,tRy)) continue;
             const edge=!inEll(x,y,jx,tcy,tRx-1,tRy-1);
             set(x,y, edge?STEEL.out : (x+0.5<jx-tRx*0.25 ? JET.metal : (Math.abs(y+0.5-(tcy-tRy*0.35))<1.2?'#C9493A':JET.dark))); }
-          const fy=Math.round(tcy+tRy), fx=Math.round(jx), len=Math.round((3+fl)*k);
+          const fy=Math.round(tcy+tRy), fx=Math.round(jx), len=Math.round((o.thrust?5.5+fl*1.5:3+fl)*k);
           for(let i=0;i<len;i++){ const t=i/len, w=Math.max(0,Math.round((1-t)*tRx*0.7)), c=FIRE[Math.min(2,Math.floor(t*3))];
             for(let dx=-w;dx<=w;dx++) set(fx+dx,fy+1+i,c); }
         }
       }
+      if(o.gadget==='jetpack' && !isDog) drawJetpack();
 
       if(isDog){ // short feathery tail, wagging
         const wag=Math.sin((o.frame||0)/5)*1.3*k, tx=cx+bodyRx*0.98, ty=bodyCy+bodyRy*0.38;
@@ -1217,6 +1219,7 @@
             set(x,y, border?P.out:(curlAt(x,y)?P.curl:P.ear)); }
         }
       }
+      if(o.gadget==='jetpack' && isDog) drawJetpack();
       if(isWolf&&att){ // werewolf mane: spiky tufts on the crown and cheeks
         const topY=bodyCy-bodyRy;
         const tufts=[[-2.6,0.9],[0,1.2],[2.6,0.9]].map(([dx,h])=>({ax:cx+dx*k, ay:topY-2.2*k*h, w:1.5*k, by:topY+1.5*k}));
@@ -1327,6 +1330,7 @@
     const WORLDS = ['city', 'jungle', 'space'];
     // Low-res scene buffer size (drawn scaled up onto the visible canvas).
     const SCENE_W = 150, SCENE_H = 84, GROUND_Y = 74;
+    const FLY_MIN_Y = 38, FLY_MAX_Y = 56; // feet height range while jetpacking
     // Dense floating platforms (shared layout, styled per world). Heights/spacing
     // tuned so a jump (reach ~20px) climbs exactly one level; ~18px gaps let the
     // pet fall a level when it steps off an edge. Levels overlap in x so 1->2->3
@@ -1566,8 +1570,32 @@
       const blink = (f % 190) < 6;
       let footL=0, footR=0, bob=0;
 
+      // ---- jetpack flight: every so often take off, cruise around, then land ----
+      if (gadget === 'jetpack') {
+        if (c.flyCool === undefined) c.flyCool = 60 + Math.floor(Math.random()*120);
+        if (!c.flying && c.grounded && --c.flyCool <= 0) {
+          c.flying = true; c.grounded = false; c.vy = -1.4;
+          c.flyT = 300 + Math.floor(Math.random()*360);
+          c.flyTarget = FLY_MIN_Y + Math.random()*(FLY_MAX_Y - FLY_MIN_Y);
+        }
+      } else if (c.flying) { c.flying = false; }
+      if (c.flying) {
+        c.flyT--;
+        if (f % 100 === 0) c.flyTarget = FLY_MIN_Y + Math.random()*(FLY_MAX_Y - FLY_MIN_Y);
+        if (Math.random() < 0.004) c.dir = -c.dir;
+        c.posX += c.dir * 0.9;
+        if (c.posX > SCENE_W - margin) { c.posX = SCENE_W - margin; c.dir = -1; }
+        if (c.posX < margin) { c.posX = margin; c.dir = 1; }
+        c.vy += (c.flyTarget - c.y) * 0.012 - c.vy * 0.07 + Math.sin(f/14) * 0.025;
+        c.y = Math.max(FLY_MIN_Y - 4, c.y + c.vy);
+        if (c.flyT <= 0) { // engines off: fall and land like after a hop
+          c.flying = false; c.vy = 0; c.moving = false;
+          c.idleT = 90 + Math.floor(Math.random()*120);
+          c.flyCool = 360 + Math.floor(Math.random()*600);
+        }
+      }
       // ---- horizontal: idle most of the time, then a short move burst ----
-      if (c.moving) {
+      else if (c.moving) {
         c.moveT--;
         c.posX += c.dir * 0.6;
         if (c.posX > SCENE_W - margin) { c.posX = SCENE_W - margin; c.dir = -1; }
@@ -1580,12 +1608,13 @@
       }
 
       // ---- vertical: gravity + platform hopping ----
-      if (c.grounded) {
+      if (c.flying) { /* thrust handled above */ }
+      else if (c.grounded) {
         // still supported at this x? (walked off an edge => fall)
         if (!topsAt(c.posX).some(T => Math.abs(T - c.y) < 0.6)) { c.grounded = false; c.vy = 0; }
         else { c.nextHop--; if (c.nextHop <= 0) { c.vy = P_JUMP; c.grounded = false; c.nextHop = 70 + Math.floor(Math.random()*150); } }
       }
-      if (!c.grounded) {
+      else if (!c.grounded) {
         const prevY = c.y;
         c.vy += P_G; c.y += c.vy;
         if (c.vy > 0) {
@@ -1597,9 +1626,9 @@
 
       // squash/stretch from vertical speed (elongate when moving fast up/down)
       let hsx = 1, hsy = 1;
-      if (!c.grounded) { const st2 = Math.min(0.14, Math.abs(c.vy) * 0.024); hsy = 1 + st2; hsx = 1 - st2 * 0.6; }
+      if (!c.grounded && !c.flying) { const st2 = Math.min(0.14, Math.abs(c.vy) * 0.024); hsy = 1 + st2; hsx = 1 - st2 * 0.6; }
 
-      const grid = build(species, st, { blink, sx: sx*hsx, sy: sy*hsy, footL, footR, gadget, frame: f });
+      const grid = build(species, st, { blink, sx: sx*hsx, sy: sy*hsy, footL, footR, gadget, frame: f, thrust: !!c.flying });
       _lctx.clearRect(0,0,CREW,CREH);
       for (let y=0;y<CREH;y++) for (let x=0;x<CREW;x++) if (grid[y][x]) { _lctx.fillStyle = grid[y][x]; _lctx.fillRect(x,y,1,1); }
 
@@ -1614,7 +1643,7 @@
       const feetY = c.y;
       const below = topsAt(c.posX).filter(T => T >= c.y - 0.5);
       const shadowY = (below.length ? Math.min.apply(null, below) : GROUND_Y) + 1;
-      const lift = Math.max(0, (shadowY - 1 - c.y)) / 20;
+      const lift = Math.min(1.5, Math.max(0, (shadowY - 1 - c.y)) / 20);
       ctx.fillStyle = 'rgba(45,42,34,'+(0.16 - lift*0.09)+')';
       ctx.beginPath();
       ctx.ellipse(c.posX*sX, shadowY*sY, (9 - lift*3)*sX, 2*sY, 0, 0, Math.PI*2);
@@ -1627,10 +1656,11 @@
       const flip = c.dir < 0;
       ctx.save();
       ctx.imageSmoothingEnabled = false;
-      ctx.translate(Math.round(c.posX * sX), 0);
+      ctx.translate(Math.round(c.posX * sX), Math.round(feetY * sY));
+      if (c.flying) ctx.rotate(c.dir * 0.12 + Math.sin(f/20) * 0.03); // lean into the flight
       ctx.scale(flip ? -1 : 1, 1);
       const dw = Math.round(sw * sX), dh = Math.round(sh * sY);
-      ctx.drawImage(_lo, 0,0,CREW,CREH, Math.round(-dw/2), Math.round(topScene * sY), dw, dh);
+      ctx.drawImage(_lo, 0,0,CREW,CREH, Math.round(-dw/2), Math.round((topScene - feetY) * sY), dw, dh);
       ctx.restore();
 
       // companion (dog / RC car) trails behind the pet on the ground
