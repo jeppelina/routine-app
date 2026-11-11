@@ -2570,5 +2570,28 @@
       migrateSpecies();
     }
   </script>
+<script>
+// Automatisk uppdatering. En app på hemskärmen kan ligga öppen i dagar utan att laddas om och fastnar då på en
+// gammal version. Här jämförs sidans egen ändringstid med serverns, vid start, varje gång appen kommer fram igen
+// och en gång i timmen. Är serverns nyare laddas sidan om från nätet. Varje ny version provas bara en gång,
+// så att en enhet aldrig kan hamna i en omladdningsloop. Övriga adressparametrar (t.ex. hem, sync) behålls.
+(function () {
+  var mine = Date.parse(document.lastModified) || 0;
+  function check() {
+    if (!navigator.onLine) return;
+    fetch(location.pathname + '?check=' + Date.now(), { method: 'HEAD', cache: 'no-store' }).then(function (r) {
+      var theirs = Date.parse(r.headers.get('last-modified') || '') || 0;
+      if (!r.ok || !theirs || theirs <= mine + 2000) return;
+      var key = 'routine-update-tried';
+      try { if (sessionStorage.getItem(key) === String(theirs)) return; sessionStorage.setItem(key, String(theirs)); } catch (e) {}
+      var qs = new URLSearchParams(location.search); qs.set('v', String(theirs));
+      location.replace(location.pathname + '?' + qs.toString() + location.hash);
+    }).catch(function () {});
+  }
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) check(); });
+  setInterval(check, 60 * 60 * 1000);
+  setTimeout(check, 3000);
+})();
+</script>
 </body>
 </html>
