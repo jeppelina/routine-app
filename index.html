@@ -1542,21 +1542,22 @@
     }
 
     // pre-created low-res creature buffer (shared, reused each draw)
-    const _lo = document.createElement('canvas'); _lo.width = CREW; _lo.height = CREH;
-    const _lctx = _lo.getContext('2d'); _lctx.imageSmoothingEnabled = false;
+    // Each pet gets its OWN sprite buffers (made in makeController). They used to be shared, but iOS
+    // Safari defers drawImage, so by the time it copied pet 1's sprite the buffer already held pet 2's:
+    // every card showed the next card's animal.
+    function makeBuffer(w, h){ const cv = document.createElement('canvas'); cv.width = w; cv.height = h; const x = cv.getContext('2d'); x.imageSmoothingEnabled = false; return { cv, x }; }
     // write the colour grid in one go (much cheaper than a fillRect per pixel)
-    const _limg = _lctx.createImageData(CREW, CREH), _rgbCache = {};
+    const _rgbCache = {};
     function hexRGB(h){ let v = _rgbCache[h]; if (!v) { const n = parseInt(h.slice(1), 16); v = _rgbCache[h] = h.length === 4 ? [((n>>8)&15)*17, ((n>>4)&15)*17, (n&15)*17] : [(n>>16)&255, (n>>8)&255, n&255]; } return v; }
-    function blitGrid(grid){
-      const d = _limg.data; d.fill(0);
+    function blitGrid(c, grid){
+      if (!c.limg) c.limg = c.lo.x.createImageData(CREW, CREH);
+      const d = c.limg.data; d.fill(0);
       for (let y=0, i=0; y<CREH; y++) { const row = grid[y]; for (let x=0; x<CREW; x++, i+=4) { const c = row[x]; if (c) { const v = hexRGB(c); d[i]=v[0]; d[i+1]=v[1]; d[i+2]=v[2]; d[i+3]=255; } } }
-      _lctx.putImageData(_limg, 0, 0);
+      c.lo.x.putImageData(c.limg, 0, 0);
     }
 
     // ---- companions that follow (dog / RC car) ----
     const CW = 44, CH = 30, cGround = 26;
-    const _clo = document.createElement('canvas'); _clo.width = CW; _clo.height = CH;
-    const _cctx = _clo.getContext('2d'); _cctx.imageSmoothingEnabled = false;
     function cNewG(){ const g=[]; for(let y=0;y<CH;y++) g.push(new Array(CW).fill(null)); return g; }
     function cEll(g,cx,cy,rx,ry,c){ for(let y=0;y<CH;y++)for(let x=0;x<CW;x++) if(((x+0.5-cx)/rx)**2+((y+0.5-cy)/ry)**2<=1) g[y][x]=c; }
     function cRect(g,x0,y0,x1,y1,c){ for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++) if(y>=0&&y<CH&&x>=0&&x<CW) g[y][x]=c; }
@@ -1598,7 +1599,8 @@
         // actions / evolution / effects
         act: null, evo: null, actCool: 150 + Math.floor(Math.random()*150), quirkCool: 500 + Math.floor(Math.random()*700),
         parts: [], bolts: [], slash: [], rings: [], cracks: [], platGlow: {}, flash: 0, shake: 0, cheer: 0,
-        compY: 0, compVy: 0, compDir: 1, compAng: 0
+        compY: 0, compVy: 0, compDir: 1, compAng: 0,
+        lo: makeBuffer(CREW, CREH)   // this pet's own sprite buffer (never shared, see makeBuffer)
       };
       ctl.redrawWorld = function(){
         const w = (data.children[i] && data.children[i].world) || 'city';
@@ -2167,7 +2169,7 @@
         thrust: !!c.flying, tool: drawGadget ? pose.tool : null, orb: pose.orb, capeSpread: pose.capeSpread, capeWind: pose.capeWind,
         shieldUp: pose.shieldUp, magicAngle: pose.magicAngle, charge: pose.charge, noDrone: pose.noDrone, howl: pose.howl, wagFast: pose.wagFast
       });
-      blitGrid(grid);
+      blitGrid(c, grid);
 
       // ---- compose onto the visible canvas ----
       const ctx = c.ctx;
@@ -2225,7 +2227,7 @@
       if (rot) ctx.rotate(rot);
       ctx.scale((flip ? -1 : 1) * spinX, 1);
       const dw = Math.round(sw * sX), dh = Math.round(sh * sY);
-      ctx.drawImage(_lo, 0,0,CREW,CREH, Math.round(-dw/2), Math.round(-G.bodyCy*SPR*sY), dw, dh);
+      ctx.drawImage(c.lo.cv, 0,0,CREW,CREH, Math.round(-dw/2), Math.round(-G.bodyCy*SPR*sY), dw, dh);
       ctx.restore();
 
       // companion (dog / RC car) trails behind the pet on the ground (actions can steer it)
@@ -2236,8 +2238,9 @@
         if (Math.abs(c.compX - prevX) > 0.05) c.compDir = c.compX > prevX ? 1 : -1;
         if (c.compVy || c.compY < 0) { c.compVy += 0.2; c.compY += c.compVy; if (c.compY >= 0) { c.compY = 0; c.compVy = 0; } }
         const cg = rawGadget === 'dog' ? buildDog(Math.abs(c.compX - prevX) > 0.05 ? f : 0) : buildCar(f);
-        _cctx.clearRect(0,0,CW,CH);
-        for (let y=0;y<CH;y++) for (let x=0;x<CW;x++) if (cg[y][x]) { _cctx.fillStyle = cg[y][x]; _cctx.fillRect(x,y,1,1); }
+        const cb = c.co || (c.co = makeBuffer(CW, CH));
+        cb.x.clearRect(0,0,CW,CH);
+        for (let y=0;y<CH;y++) for (let x=0;x<CW;x++) if (cg[y][x]) { cb.x.fillStyle = cg[y][x]; cb.x.fillRect(x,y,1,1); }
         const compScale = 0.5, cdw = Math.round(CW*compScale*sX), cdh = Math.round(CH*compScale*sY);
         ctx.fillStyle = 'rgba(45,42,34,0.14)';
         ctx.beginPath(); ctx.ellipse(c.compX*sX, (GROUND_Y+1)*sY, 7*sX, 1.8*sY, 0, 0, Math.PI*2); ctx.fill();
@@ -2245,7 +2248,7 @@
         ctx.save(); ctx.imageSmoothingEnabled = false;
         ctx.translate(Math.round(c.compX * sX), Math.round((GROUND_Y + c.compY) * sY)); ctx.scale(cflip ? -1 : 1, 1);
         if (c.compAng) { ctx.translate(-cdw*0.2, 0); ctx.rotate(c.compAng); ctx.translate(cdw*0.2, 0); }
-        ctx.drawImage(_clo, 0,0,CW,CH, Math.round(-cdw/2), Math.round(-cGround*compScale*sY), cdw, cdh);
+        ctx.drawImage(cb.cv, 0,0,CW,CH, Math.round(-cdw/2), Math.round(-cGround*compScale*sY), cdw, cdh);
         ctx.restore();
       }
 
