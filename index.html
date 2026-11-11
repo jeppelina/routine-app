@@ -263,6 +263,8 @@
     .progress-fill.flash { animation: barflash 0.7s ease-out; }
     @keyframes barflash { 30% { filter: brightness(1.7) saturate(1.3); box-shadow: 0 0 12px var(--accent); } }
     .confetti { position: fixed; inset: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 60; }
+    .admin-family-status { font-size: 14px; color: var(--muted); margin-bottom: 4px; }
+    .admin-family-status b { color: var(--ink); font-weight: 600; }
     .admin-sound { display: flex; align-items: center; gap: 8px; font-size: 15px; color: var(--ink); cursor: pointer; }
     .admin-sound input { width: 18px; height: 18px; accent-color: var(--accent); }
     .pet-swap { right: 46px; }
@@ -419,6 +421,18 @@
         <button id="adminAddBtn" class="admin-add-btn" type="button">Lägg till</button>
       </div>
       <div class="admin-upgrades">
+        <div class="admin-label">Familj (synk mellan enheter)</div>
+        <div id="adminFamilyStatus" class="admin-family-status"></div>
+        <div class="admin-listbar" id="adminFamilyLinked">
+          <button id="adminCopyLink" class="admin-mini" type="button">Kopiera familjelänk</button>
+          <button id="adminLeave" class="admin-mini danger" type="button">Koppla från den här enheten</button>
+        </div>
+        <div class="admin-add" id="adminFamilyJoin" style="border-top:0;padding-top:0">
+          <input id="adminFamilyCode" type="text" placeholder="Klistra in familjelänk eller kod…" autocomplete="off" autocapitalize="off" spellcheck="false">
+          <button id="adminJoin" class="admin-add-btn" type="button">Koppla</button>
+        </div>
+      </div>
+      <div class="admin-upgrades">
         <div class="admin-label">Slutuppgradering (när allt är klart)</div>
         <div id="adminUpgrades" style="display:flex;flex-direction:column;gap:10px"></div>
         <div class="admin-label" style="margin-top:8px">Ljud</div>
@@ -448,7 +462,27 @@
     if (!CLOUD_SYNC) console.info('[routine-app] Local dev mode: cloud sync OFF (add ?sync=1 to enable).');
     const SUPABASE_URL = 'https://bhurxoknmyfqymtiaycx.supabase.co';
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJodXJ4b2tubXlmcXltdGlheWN4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE5NzI5NTAsImV4cCI6MjA5NzU0ODk1MH0.YbblDF0jfZNzdIMy8rMF3t19b7b6onD91VVLi9N8kYg';
-    const HOUSEHOLD_ID = 'c16b0799-e72b-4318-99e1-12661b9f6e02';
+    // Which family this device syncs with. It is NOT in the page (the page is public): a device joins
+    // by opening the private family link (…/routine-app/?hem=<code>) once, or by pasting the code in
+    // Admin → Familj. Without it the app works fine on its own, saving only on this device.
+    const HH_KEY = 'routineHousehold', ADOPT_KEY = 'routineAdoptCloud';
+    const UUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+    function setHousehold(code){
+      try {
+        if (code) { if (localStorage.getItem(HH_KEY) !== code) { localStorage.setItem(HH_KEY, code); localStorage.setItem(ADOPT_KEY, '1'); } }
+        else localStorage.removeItem(HH_KEY);
+      } catch (e) {}
+    }
+    function readHousehold(){
+      try {
+        const qs = new URLSearchParams(location.search), m = (qs.get('hem') || '').match(UUID_RE);
+        if (m) { setHousehold(m[0].toLowerCase()); qs.delete('hem'); history.replaceState(null, '', location.pathname + (qs.toString() ? '?' + qs : '') + location.hash); }
+        const v = localStorage.getItem(HH_KEY);
+        return v && UUID_RE.test(v) ? v : null;
+      } catch (e) { return null; }
+    }
+    const HOUSEHOLD_ID = readHousehold();
+    let householdStatus = HOUSEHOLD_ID ? 'connecting' : 'none'; // none | connecting | ok | notfound | offline
 
     const CLIENT_ID = 'c_' + Math.random().toString(36).slice(2, 10);
     let sb = null;
@@ -469,7 +503,7 @@
         if (!HOUSEHOLD_ID || HOUSEHOLD_ID.indexOf('__') === 0) return;
         if (window.supabase && window.supabase.createClient) {
           sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-        }
+        } else householdStatus = 'offline'; // sync library didn't load (offline?)
       } catch (e) { console.warn('Supabase init failed', e); }
     }
 
@@ -546,8 +580,10 @@
     async function pullState() {
       if (!syncEnabled()) { firstSyncDone = true; return; }
       try {
-        const { data: row, error } = await sb.from('households').select('state').eq('id', HOUSEHOLD_ID).single();
+        const { data: row, error } = await sb.from('households').select('state').eq('id', HOUSEHOLD_ID).maybeSingle();
         if (error) throw error;
+        if (!row) { householdStatus = 'notfound'; console.warn('Family code not found; staying local'); return; } // no pushes either
+        householdStatus = 'ok';
         const remote = row && row.state;
         firstSyncDone = true;
         if (remote && Array.isArray(remote.children) && remote.children.length) {
@@ -556,7 +592,13 @@
           // Cloud empty: seed it from real data only, never from a bare default seed.
           pushRemote(data);
         }
-      } catch (e) { console.warn('Pull failed', e); firstSyncDone = true; }
+      } catch (e) {
+        console.warn('Pull failed', e); householdStatus = 'offline';
+        // A device that just joined must adopt the family's data before it may push anything,
+        // so it waits for a successful pull; an established device may keep saving.
+        if (!data._seeded) firstSyncDone = true;
+        setTimeout(() => { if (!firstSyncDone || householdStatus === 'offline') pullState(); }, 30000);
+      }
     }
     // Bring local and cloud into agreement. A fresh default seed has nothing worth
     // keeping, so it adopts the cloud wholesale. Two real devices are UNION-merged so
@@ -849,7 +891,36 @@
 
       renderAdminUpgrades();
       document.getElementById('adminSound').checked = soundOn;
+      renderAdminFamily();
     }
+    function familyLink(){ return location.origin + location.pathname + '?hem=' + HOUSEHOLD_ID; }
+    function renderAdminFamily(){
+      const st = document.getElementById('adminFamilyStatus');
+      const msg = {
+        none: 'Inte kopplad – den här enheten sparar bara lokalt. Öppna familjelänken eller klistra in koden nedan.',
+        connecting: 'Kopplar till familjen…',
+        ok: '<b>Kopplad till familjen ✓</b> Ändringar synkas mellan enheterna.',
+        notfound: 'Familjekoden hittades inte – den här enheten sparar bara lokalt. Kontrollera länken.',
+        offline: 'Kopplad, men når inte servern just nu. Försöker igen automatiskt.'
+      };
+      st.innerHTML = CLOUD_SYNC ? msg[householdStatus] : 'Utvecklingsläge – synk avstängd.';
+      document.getElementById('adminFamilyLinked').style.display = HOUSEHOLD_ID ? '' : 'none';
+    }
+    document.getElementById('adminCopyLink').addEventListener('click', async (e) => {
+      const btn = e.currentTarget, link = familyLink();
+      try { await navigator.clipboard.writeText(link); btn.textContent = 'Kopierad ✓'; }
+      catch (err) { window.prompt('Kopiera familjelänken:', link); }
+      setTimeout(() => { btn.textContent = 'Kopiera familjelänk'; }, 1800);
+    });
+    document.getElementById('adminLeave').addEventListener('click', () => {
+      if (!confirm('Koppla från den här enheten? Den slutar synka med familjen men behåller sina listor lokalt.')) return;
+      setHousehold(null); location.reload();
+    });
+    document.getElementById('adminJoin').addEventListener('click', () => {
+      const m = (document.getElementById('adminFamilyCode').value || '').match(UUID_RE);
+      if (!m) { alert('Det där ser inte ut som en familjelänk eller kod.'); return; }
+      setHousehold(m[0].toLowerCase()); location.reload();
+    });
     document.getElementById('adminSound').addEventListener('change', (e) => {
       soundOn = e.target.checked;
       try { localStorage.setItem('routineSound', soundOn ? '1' : '0'); } catch (err) {}
@@ -993,9 +1064,12 @@
       if (stored) {
         data = JSON.parse(stored);
         normalizeData();
+        // Just joined a family: take the family's data as-is instead of merging this device's copy in.
+        try { if (localStorage.getItem(ADOPT_KEY)) { data._seeded = true; localStorage.removeItem(ADOPT_KEY); } } catch (e) {}
         persist();
         return;
       }
+      try { localStorage.removeItem(ADOPT_KEY); } catch (e) {}
       // No stored data: build a default seed. Mark it as a seed so the first cloud
       // pull adopts the real household instead of pushing these defaults over it.
       data = {
@@ -1076,8 +1150,8 @@
       leopard:{ out:'#3A2A18', body:'#E2B65C', light:'#EFCD82', dark:'#C9973F', belly:'#F7EDD6', ear:'#E7C3A2', eye:'#2A2016', cheek:'#E8A27A', foot:'#C9973F', tailtip:'#3A2A18', spot:'#3A2A18', rosette:'#B5782C', nose:'#C46F64' }
     };
     // Selectable pets, in the order the paw button cycles through them.
-    const SPECIES = ['hund', 'varg', 'leopard', 'kanin', 'rav', 'uggla'];
-    const SPECIES_NAMES = { hund:'Hund', varg:'Varg', leopard:'Leopard', kanin:'Kanin', rav:'Räv', uggla:'Uggla' };
+    const SPECIES = ['hund', 'varg', 'varulv', 'leopard', 'kanin', 'rav', 'uggla'];
+    const SPECIES_NAMES = { hund:'Hund', varg:'Varg', varulv:'Varulv', leopard:'Leopard', kanin:'Kanin', rav:'Räv', uggla:'Uggla' };
     const STEEL = {fill:'#C6CCD3',shine:'#ECF0F4',out:'#474C54'}, GOLD='#CBA23E', GRIP='#6B4A32';
     const WOOD='#8A6A46', WOODD='#5F4A30', CRYSTAL='#7FC8D6', CRYSTALL='#D6F4FA', CRYSTAL_D='#4E9AA8';
     const SCARF = {fill:'#A6442F',dark:'#7C3020'}, CAPE={fill:'#8E3B34',dark:'#5E2620',clasp:'#E0C877'};
@@ -1097,9 +1171,11 @@
 
     function build(species,st,o){
       if(!PALS[species]) species='kanin';
-      const isWolf=species==='varg', isDog=species==='hund', isLeo=species==='leopard';
+      const isWere=species==='varulv'; // werewolf at every stage (the plain wolf only turns at the last one)
+      const isWolf=species==='varg'||isWere, isDog=species==='hund', isLeo=species==='leopard';
       const sx=o.sx||1, sy=o.sy||1, k=st.sc*R, att=st.att, ek=st.earScale;
-      const P=(isWolf&&att)?PALS.varulv:PALS[species];
+      const wereLook=isWolf&&(att||isWere);
+      const P=wereLook?PALS.varulv:PALS[species];
       const rr=(n)=>Math.round(n*R);
       const newGrid=()=>{ const a=[]; for(let y=0;y<CREH;y++) a.push(new Array(CREW).fill(null)); return a; };
       let g=newGrid();
@@ -1266,7 +1342,7 @@
         }
       }
       if(o.gadget==='jetpack' && isDog) drawJetpack();
-      if(isWolf&&att){ // werewolf mane: spiky tufts on the crown and cheeks
+      if(wereLook){ // werewolf mane: spiky tufts on the crown and cheeks
         const topY=bodyCy-bodyRy;
         const tufts=[[-2.6,0.9],[0,1.2],[2.6,0.9]].map(([dx,h])=>({ax:cx+dx*k, ay:topY-2.2*k*h, w:1.5*k, by:topY+1.5*k}));
         const inTuft=(x,y)=>tufts.some(t=>inTri(x,y,t.ax,t.ay,t.w,t.by));
@@ -1311,7 +1387,7 @@
         if(P.nose){ setIf(cx-1,ny,P.nose); setIf(cx,ny,P.nose); setIf(cx+1,ny,P.nose); setIf(cx,ny+1,P.nose); if(isDog&&att){ setIf(cx-2,ny,P.nose); setIf(cx+2,ny,P.nose); } }
         else setIf(cx,ny,P.out);
         if(isDog){ setIf(cx,m+2,P.tongue); setIf(cx+1,m+2,P.tongue); setIf(cx,m+3,P.tongue); setIf(cx+1,m+3,P.tongue); }
-        if(isWolf&&att){ setIf(cx-e+1,m+2,'#FFFFFF'); setIf(cx-e+1,m+3,'#FFFFFF'); setIf(cx+e-1,m+2,'#FFFFFF'); setIf(cx+e-1,m+3,'#FFFFFF'); }
+        if(wereLook){ setIf(cx-e+1,m+2,'#FFFFFF'); setIf(cx-e+1,m+3,'#FFFFFF'); setIf(cx+e-1,m+2,'#FFFFFF'); setIf(cx+e-1,m+3,'#FFFFFF'); }
         if(att){ setIf(cx-e,m+1,P.out); setIf(cx-Math.round(e*0.5),m,P.out); setIf(cx,m,P.out); setIf(cx+Math.round(e*0.5),m,P.out); setIf(cx+e,m+1,P.out); setIf(cx-rr(1),m+2,'#FFFFFF'); }
         else { setIf(cx-e,m,P.out); setIf(cx-Math.round(e*0.5),m+1,P.out); setIf(cx,m+1,P.out); setIf(cx+Math.round(e*0.5),m+1,P.out); setIf(cx+e,m,P.out); }
         if(o.howl){ for(let y=m-1;y<=m+rr(2.5);y++) for(let x=cx-rr(1.5);x<=cx+rr(1.5);x++){ if(inEll(x,y,cx,m+rr(0.8),rr(1.4),rr(1.8))) setIf(x,y,inEll(x,y,cx,m+rr(1.2),rr(0.7),rr(0.9))?'#B5485A':P.out); } } }
@@ -1878,7 +1954,7 @@
       r_spin: { kind:'react', start(){ return { lock:true }; },
         step(c, e, a){ const t=a.t; if (t%5===0) addPart(c,{ x:c.posX+rand(-10,10), y:c.y-rand(6,26), vy:-0.3, life:20, c:'#F3D36A', s:1, shape:'star' }); if (t>=40) a.done=true; return { spinX:Math.cos(t*0.32) }; } }
     };
-    const QUIRK_FOR = { hund:'q_hund', leopard:'q_leopard', varg:'q_varg' };
+    const QUIRK_FOR = { hund:'q_hund', leopard:'q_leopard', varg:'q_varg', varulv:'q_varg' };
 
     function startAct(c, type, env, ambient){
       const def=ACTIONS[type]; if (!def) return;
